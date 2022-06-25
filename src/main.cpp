@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include "lexer/token.hpp"
 
 
 int main(int argc, const char * const * argv)

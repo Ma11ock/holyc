@@ -11,15 +11,13 @@ set(CMAKE_CXX_VERSION 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 cmake_policy(SET CMP0075 NEW)
 
-# Find SDL2 dependencies.
-
-
-
 # Set the source files.
 set(SRC_SOURCES
   simul.cpp
+  lexer/token.cpp
   # Header files.
   simul.hpp
+  lexer/token.hpp
   )
 
 

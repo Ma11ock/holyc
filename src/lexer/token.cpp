@@ -65,7 +65,7 @@ std::tuple<slang::Lexeme, slang::lexemeLen> slang::lexerPull(std::string_view so
 
     const static std::array TOKENS = {
         // Whitespace, comments, etc.
-        Token("^\\s+|^\\{([\\s\\S]*)\\}", slang::TokenType::Space),
+        Token("^\\s+|^(\\!|comment)[^;]*;", slang::TokenType::Space),
         // Keywords.
         Token("^begin", slang::TokenType::Begin),
         Token("^end", slang::TokenType::End),

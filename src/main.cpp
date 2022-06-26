@@ -34,7 +34,6 @@ int main(int argc, const char * const * argv)
 
         sourcePtr = std::string_view(sourcePtr.begin() + curLexemeLen,
                                      sourcePtr.size() - curLexemeLen);
-        fmt::print("{} (Len {})\n", curLexeme.stringify(), curLexemeLen);
     }
     return 0;
 }

@@ -43,6 +43,7 @@ namespace simul {
         Integer,
         Real,
         Text,
+        Goto,
         // Operators.
         Plus,
         Minus,
@@ -55,6 +56,9 @@ namespace simul {
         LessThanEqual,
         GreaterThan,
         GreaterThanEqual,
+        Equality,
+        Inequality,
+        Power,
         // Grammar symbols.
         Semicolon,
         Colon,

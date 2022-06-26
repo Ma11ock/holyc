@@ -7,10 +7,6 @@
 
 #include <fmt/core.h>
 
-using svmatch = std::match_results<std::string_view::const_iterator>;
-using svsub_match = std::sub_match<std::string_view::const_iterator>;
-
-
 using TT = simul::TokenType;
 
 class Token {
@@ -30,6 +26,7 @@ public:
     */
     std::tuple<bool, std::string_view> match(std::string_view source) const {
         using namespace std::literals;
+        using svmatch = std::match_results<std::string_view::const_iterator>;
         svmatch sm;
         if(!std::regex_search(source.cbegin(), source.cend(), sm, mRegex)) {
             return std::make_tuple(false, ""sv);
@@ -37,8 +34,9 @@ public:
 
         const char *first = sm[0].first;
         const char *last = sm[0].second;
-        return std::make_tuple(true, std::string_view(first,
-                                                      static_cast<std::size_t>(last - first)));
+        return std::make_tuple(true,
+                               std::string_view(first,
+                                                static_cast<std::size_t>(last - first)));
     }
 
     simul::TokenType getTokenType() const {
@@ -94,12 +92,14 @@ std::tuple<simul::Lexeme, simul::lexemeLen> simul::lexerPull(std::string_view so
         Token("^real", simul::TokenType::Real),
         Token("^text", simul::TokenType::Text),
         Token("^name", simul::TokenType::Name),
+        Token("^go to", simul::TokenType::Goto),
         // Operators and grammars.
         Token("^\\:", simul::TokenType::Colon),
         Token("^\\*", simul::TokenType::Times),
         Token("^\\+", simul::TokenType::Plus),
         Token("^\\-", simul::TokenType::Minus),
-        Token("^\\/", simul::TokenType::Divide),
+        Token("^\\%", simul::TokenType::Divide),
+        Token("^\\^", simul::TokenType::Power),
         Token("^\\&", simul::TokenType::Strcat),
         Token("^:\\=", simul::TokenType::Assign),
         Token("^\\;", simul::TokenType::Semicolon),
@@ -112,6 +112,8 @@ std::tuple<simul::Lexeme, simul::lexemeLen> simul::lexerPull(std::string_view so
         Token("^\\<\\=", simul::TokenType::LessThanEqual),
         Token("^\\>", simul::TokenType::GreaterThan),
         Token("^\\>\\=", simul::TokenType::GreaterThanEqual),
+        Token("^\\=", simul::TokenType::Equality),
+        Token("^\\<\\>", simul::TokenType::Inequality),
         Token("^,", simul::TokenType::Comma),
         // Constants.
         Token("^'.'", simul::TokenType::CharacterConstant),
@@ -126,6 +128,8 @@ std::tuple<simul::Lexeme, simul::lexemeLen> simul::lexerPull(std::string_view so
         return std::make_tuple(simul::Lexeme(TokenType::Eof), 0);
     }
 
+    // Get matched tokens and store them in a lexeme. We use a tuple with a
+    // string_view just to avoid allocations.
     std::array<std::tuple<simul::Lexeme, std::string_view>, TOKENS.size()> matchedTokens;
     std::size_t i = 0;
     for(const auto &token : TOKENS) {
@@ -259,6 +263,9 @@ std::string_view simul::stringifyTokenType(TokenType type) {
     case TT::Text:
         return "Text";
         break;
+    case TT::Goto:
+        return "Go to";
+        break;
     case TT::Plus:
         return "Plus";
         break;
@@ -270,6 +277,9 @@ std::string_view simul::stringifyTokenType(TokenType type) {
         break;
     case TT::Divide:
         return "Divide";
+        break;
+    case TT::Power:
+        return "Power";
         break;
     case TT::Identifier:
         return "Identifier";
@@ -291,6 +301,12 @@ std::string_view simul::stringifyTokenType(TokenType type) {
         break;
     case TT::GreaterThanEqual:
         return "GreaterThanEqual";
+        break;
+    case TT::Equality:
+        return "Equality";
+        break;
+    case TT::Inequality:
+        return "Inequality";
         break;
     case TT::Semicolon:
         return "Semicolon";

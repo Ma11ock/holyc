@@ -7,25 +7,68 @@
 #include <tuple>
 #include <string_view>
 
-namespace smul {
+namespace simul {
+
+    using lexemeLen = std::string::size_type;
 
     enum class TokenType {
-        NoOp,
+        // Misc.
+        Space,
+        Eof,
+        Error,
+        // Keywords.
         Begin,
         End,
         If,
         Then,
         Else,
+        Procedure,
+        Simulation,
+        Class,
+        Virtual,
+        Is,
+        Ref,
+        New,
+        Array,
+        Do,
+        Step,
+        Name,
+        Until,
+        Activate,
+        While,
+        For,
+        True,
+        False,
+        Boolean,
+        Integer,
+        Real,
+        Text,
+        // Operators.
         Plus,
         Minus,
         Times,
         Divide,
         Identifier,
-        Real,
-        Integer,
-        String,
-        Eof,
-        Error,
+        Assign,
+        Strcat,
+        LessThan,
+        LessThanEqual,
+        GreaterThan,
+        GreaterThanEqual,
+        // Grammar symbols.
+        Semicolon,
+        Colon,
+        Lparen,
+        Rparen,
+        Dot,
+        Lbracket,
+        Rbracket,
+        Comma,
+        // Data.
+        CharacterConstant,
+        RealConstant,
+        IntegerConstant,
+        StringConstant,
     };
 
     class Lexeme {
@@ -37,24 +80,54 @@ namespace smul {
         }
         Lexeme(const std::string &text, TokenType type) : mText(text),mType(type) {
         }
-        Lexeme() : mText(""),mType(TokenType::NoOp) {
+        Lexeme() : mText(""),mType(TokenType::Space) {
         }
 
-        std::string::size_type getTextLength() const {
+        inline std::string::size_type getTextLength() const {
             return mText.size();
         }
 
-        std::string getText() const {
+        inline std::string getTextCopy() const {
+            return mText;
+        }
+
+        inline std::string_view getText() const {
             return mText;
         }
 
         ~Lexeme() = default;
+
+        inline bool operator==(TokenType type) {
+            return mType == type;
+        }
+
+        inline bool operator!=(TokenType type) {
+            return mType != type;
+        }
+
+        Lexeme operator=(const Lexeme &other) {
+            if(this != &other) {
+                mType = other.mType;
+                mText = other.mText;
+            }
+            return *this;
+        }
+
+        bool hasText() const;
+
+        std::string stringify() const;
+
+        inline TokenType getTokenType() const {
+            return mType;
+        }
     };
 
     /**
      * Pull the next token and lexeme from the file.
      */
-    std::tuple<Lexeme, std::string::size_type> lexerPull(std::string_view source);
+    std::tuple<Lexeme, lexemeLen> lexerPull(std::string_view source);
+
+    std::string_view stringifyTokenType(TokenType type);
 }
 
 #endif /* SIMUL_TOKEN_HPP */

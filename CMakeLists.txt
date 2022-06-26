@@ -14,8 +14,14 @@ endif()
 
 project(simul)
 
+# Fmtlib
+add_subdirectory(external/fmt)
+set(SIMUL_FMT_PATH external/fmt/include)
+
+# Simul source directory.
 add_subdirectory(src)
 
+# Unit tests.
 if(SIMUL_TESTS AND NOT NO_SIMUL_TESTS)
   add_subdirectory(test)
 endif()

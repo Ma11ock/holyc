@@ -46,8 +46,11 @@ target_link_libraries(
   ${BINARY}
   PUBLIC
   ${CMAKE_REQUIRED_LIBRARIES}
-  m)
+  m
+  fmt)
 
+# Include directories.
+target_include_directories(${BINARY} PRIVATE ${SIMUL_FMT_PATH})
 
 set_target_properties(${BINARY} PROPERTIES LINK_FLAGS_RELEASE -s)
 target_compile_features(${BINARY} PUBLIC cxx_std_17)
@@ -56,7 +59,7 @@ target_compile_features(${BINARY} PUBLIC c_std_99)
 add_custom_target(run
   COMMAND ${BINARY_FINAL}
   DEPENDS ${BINARY_FINAL}
-  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+  WORKING_DIRECTORY ../)
 
 if(CMAKE_BUILD_TYPE STREQUAL "debug")
 target_compile_options(${BINARY_FINAL} PRIVATE
@@ -66,7 +69,6 @@ target_compile_options(${BINARY_FINAL} PRIVATE
 endif()
 
 install(TARGETS ${BINARY}
-
   DESTINATION bin/
   PERMISSIONS
   OWNER_READ

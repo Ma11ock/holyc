@@ -1,5 +1,5 @@
-#ifndef SIMUL_TOKEN_HPP
-#define SIMUL_TOKEN_HPP
+#ifndef SLANG_TOKEN_HPP
+#define SLANG_TOKEN_HPP
 
 #include <string>
 #include <regex>
@@ -7,7 +7,7 @@
 #include <tuple>
 #include <string_view>
 
-namespace simul {
+namespace slang {
 
     using lexemeLen = std::string::size_type;
 
@@ -23,7 +23,7 @@ namespace simul {
         Then,
         Else,
         Procedure,
-        Simulation,
+        Slangation,
         Class,
         Virtual,
         Is,
@@ -134,4 +134,4 @@ namespace simul {
     std::string_view stringifyTokenType(TokenType type);
 }
 
-#endif /* SIMUL_TOKEN_HPP */
+#endif /* SLANG_TOKEN_HPP */

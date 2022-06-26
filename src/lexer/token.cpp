@@ -7,14 +7,14 @@
 
 #include <fmt/core.h>
 
-using TT = simul::TokenType;
+using TT = slang::TokenType;
 
 class Token {
 protected:
     std::regex mRegex;
-    simul::TokenType mType;
+    slang::TokenType mType;
 public:
-    Token(const std::string &regex, simul::TokenType type) :
+    Token(const std::string &regex, slang::TokenType type) :
         mRegex(regex,
                std::regex_constants::icase | std::regex_constants::ECMAScript),
         mType(type) {
@@ -39,11 +39,11 @@ public:
                                                 static_cast<std::size_t>(last - first)));
     }
 
-    simul::TokenType getTokenType() const {
+    slang::TokenType getTokenType() const {
         return mType;
     }
 
-    simul::Lexeme makeLexeme(std::string_view text) const {
+    slang::Lexeme makeLexeme(std::string_view text) const {
 
         switch(mType) {
         case TT::Identifier:
@@ -51,91 +51,91 @@ public:
         case TT::IntegerConstant:
         case TT::StringConstant:
         case TT::CharacterConstant:
-            return simul::Lexeme(std::string(text), mType);
+            return slang::Lexeme(std::string(text), mType);
             break;
         default:
-            return simul::Lexeme(mType);
+            return slang::Lexeme(mType);
             break;
         }
     }
 };
 
 
-std::tuple<simul::Lexeme, simul::lexemeLen> simul::lexerPull(std::string_view source) {
+std::tuple<slang::Lexeme, slang::lexemeLen> slang::lexerPull(std::string_view source) {
 
     const static std::array TOKENS = {
         // Whitespace, comments, etc.
-        Token("^\\s+|^\\{([\\s\\S]*)\\}", simul::TokenType::Space),
+        Token("^\\s+|^\\{([\\s\\S]*)\\}", slang::TokenType::Space),
         // Keywords.
-        Token("^begin", simul::TokenType::Begin),
-        Token("^end", simul::TokenType::End),
-        Token("^if", simul::TokenType::If),
-        Token("^then", simul::TokenType::Then),
-        Token("^else", simul::TokenType::Else),
-        Token("^simulation", simul::TokenType::Simulation),
-        Token("^class", simul::TokenType::Class),
-        Token("^virtual", simul::TokenType::Virtual),
-        Token("^is", simul::TokenType::Is),
-        Token("^ref", simul::TokenType::Ref),
-        Token("^new", simul::TokenType::New),
-        Token("^array", simul::TokenType::Array),
-        Token("^do", simul::TokenType::Do),
-        Token("^step", simul::TokenType::Step),
-        Token("^until", simul::TokenType::Until),
-        Token("^activate", simul::TokenType::Activate),
-        Token("^while", simul::TokenType::While),
-        Token("^for", simul::TokenType::For),
-        Token("^true", simul::TokenType::True),
-        Token("^false", simul::TokenType::False),
-        Token("^boolean", simul::TokenType::Boolean),
-        Token("^integer", simul::TokenType::Integer),
-        Token("^real", simul::TokenType::Real),
-        Token("^text", simul::TokenType::Text),
-        Token("^name", simul::TokenType::Name),
-        Token("^go to", simul::TokenType::Goto),
+        Token("^begin", slang::TokenType::Begin),
+        Token("^end", slang::TokenType::End),
+        Token("^if", slang::TokenType::If),
+        Token("^then", slang::TokenType::Then),
+        Token("^else", slang::TokenType::Else),
+        Token("^slangation", slang::TokenType::Slangation),
+        Token("^class", slang::TokenType::Class),
+        Token("^virtual", slang::TokenType::Virtual),
+        Token("^is", slang::TokenType::Is),
+        Token("^ref", slang::TokenType::Ref),
+        Token("^new", slang::TokenType::New),
+        Token("^array", slang::TokenType::Array),
+        Token("^do", slang::TokenType::Do),
+        Token("^step", slang::TokenType::Step),
+        Token("^until", slang::TokenType::Until),
+        Token("^activate", slang::TokenType::Activate),
+        Token("^while", slang::TokenType::While),
+        Token("^for", slang::TokenType::For),
+        Token("^true", slang::TokenType::True),
+        Token("^false", slang::TokenType::False),
+        Token("^boolean", slang::TokenType::Boolean),
+        Token("^integer", slang::TokenType::Integer),
+        Token("^real", slang::TokenType::Real),
+        Token("^text", slang::TokenType::Text),
+        Token("^name", slang::TokenType::Name),
+        Token("^go to", slang::TokenType::Goto),
         // Operators and grammars.
-        Token("^\\:", simul::TokenType::Colon),
-        Token("^\\*", simul::TokenType::Times),
-        Token("^\\+", simul::TokenType::Plus),
-        Token("^\\-", simul::TokenType::Minus),
-        Token("^\\%", simul::TokenType::Divide),
-        Token("^\\^", simul::TokenType::Power),
-        Token("^\\&", simul::TokenType::Strcat),
-        Token("^:\\=", simul::TokenType::Assign),
-        Token("^\\;", simul::TokenType::Semicolon),
-        Token("^\\(", simul::TokenType::Lparen),
-        Token("^\\)", simul::TokenType::Rparen),
-        Token("^\\.", simul::TokenType::Dot),
-        Token("^\\[", simul::TokenType::Lbracket),
-        Token("^\\]", simul::TokenType::Rbracket),
-        Token("^\\<", simul::TokenType::LessThan),
-        Token("^\\<\\=", simul::TokenType::LessThanEqual),
-        Token("^\\>", simul::TokenType::GreaterThan),
-        Token("^\\>\\=", simul::TokenType::GreaterThanEqual),
-        Token("^\\=", simul::TokenType::Equality),
-        Token("^\\<\\>", simul::TokenType::Inequality),
-        Token("^,", simul::TokenType::Comma),
+        Token("^\\:", slang::TokenType::Colon),
+        Token("^\\*", slang::TokenType::Times),
+        Token("^\\+", slang::TokenType::Plus),
+        Token("^\\-", slang::TokenType::Minus),
+        Token("^\\%", slang::TokenType::Divide),
+        Token("^\\^", slang::TokenType::Power),
+        Token("^\\&", slang::TokenType::Strcat),
+        Token("^:\\=", slang::TokenType::Assign),
+        Token("^\\;", slang::TokenType::Semicolon),
+        Token("^\\(", slang::TokenType::Lparen),
+        Token("^\\)", slang::TokenType::Rparen),
+        Token("^\\.", slang::TokenType::Dot),
+        Token("^\\[", slang::TokenType::Lbracket),
+        Token("^\\]", slang::TokenType::Rbracket),
+        Token("^\\<", slang::TokenType::LessThan),
+        Token("^\\<\\=", slang::TokenType::LessThanEqual),
+        Token("^\\>", slang::TokenType::GreaterThan),
+        Token("^\\>\\=", slang::TokenType::GreaterThanEqual),
+        Token("^\\=", slang::TokenType::Equality),
+        Token("^\\<\\>", slang::TokenType::Inequality),
+        Token("^,", slang::TokenType::Comma),
         // Constants.
-        Token("^'.'", simul::TokenType::CharacterConstant),
-        Token("^\".*\"", simul::TokenType::StringConstant),
-        Token("^[-0-9]+", simul::TokenType::IntegerConstant),
-        Token("^[-.0-9]+", simul::TokenType::RealConstant),
-        Token("^[_a-zA-Z][_\\w]*", simul::TokenType::Identifier),
+        Token("^'.'", slang::TokenType::CharacterConstant),
+        Token("^\".*\"", slang::TokenType::StringConstant),
+        Token("^[-0-9]+", slang::TokenType::IntegerConstant),
+        Token("^[-.0-9]+", slang::TokenType::RealConstant),
+        Token("^[_a-zA-Z][_\\w]*", slang::TokenType::Identifier),
     };
 
 
     if(source.empty()) {
-        return std::make_tuple(simul::Lexeme(TokenType::Eof), 0);
+        return std::make_tuple(slang::Lexeme(TokenType::Eof), 0);
     }
 
     // Get matched tokens and store them in a lexeme. We use a tuple with a
     // string_view just to avoid allocations.
-    std::array<std::tuple<simul::Lexeme, std::string_view>, TOKENS.size()> matchedTokens;
+    std::array<std::tuple<slang::Lexeme, std::string_view>, TOKENS.size()> matchedTokens;
     std::size_t i = 0;
     for(const auto &token : TOKENS) {
         auto [matched, match] = token.match(source);
         if(matched) {
-            matchedTokens[i++] = std::make_tuple(simul::Lexeme(token.getTokenType()),
+            matchedTokens[i++] = std::make_tuple(slang::Lexeme(token.getTokenType()),
                                                  match);
         }
     }
@@ -149,8 +149,8 @@ std::tuple<simul::Lexeme, simul::lexemeLen> simul::lexerPull(std::string_view so
     // chosen. If multiple tokens ate the same number of characters, choose the one
     // defined first.
 
-    simul::lexemeLen longestTokenLen = 0;
-    simul::Lexeme longestToken = simul::Lexeme("", simul::TokenType::Error);
+    slang::lexemeLen longestTokenLen = 0;
+    slang::Lexeme longestToken = slang::Lexeme("", slang::TokenType::Error);
     std::string_view longestMatchStr;
 
     for(auto it = matchedTokens.rbegin() + matchedTokens.size() - i;
@@ -165,7 +165,7 @@ std::tuple<simul::Lexeme, simul::lexemeLen> simul::lexerPull(std::string_view so
     }
 
     if(longestToken.hasText()) {
-        longestToken = simul::Lexeme(std::string(longestMatchStr),
+        longestToken = slang::Lexeme(std::string(longestMatchStr),
                                      longestToken.getTokenType());
     }
 
@@ -174,7 +174,7 @@ std::tuple<simul::Lexeme, simul::lexemeLen> simul::lexerPull(std::string_view so
 
 
 
-std::string_view simul::stringifyTokenType(TokenType type) {
+std::string_view slang::stringifyTokenType(TokenType type) {
     switch(type) {
     case TT::Space:
         return "Space";
@@ -203,8 +203,8 @@ std::string_view simul::stringifyTokenType(TokenType type) {
     case TT::Procedure:
         return "Procedure";
         break;
-    case TT::Simulation:
-        return "Simulation";
+    case TT::Slangation:
+        return "Slangation";
         break;
     case TT::Class:
         return "Class";
@@ -348,7 +348,7 @@ std::string_view simul::stringifyTokenType(TokenType type) {
     throw std::invalid_argument("Kek!");
 }
 
-bool simul::Lexeme::hasText() const {
+bool slang::Lexeme::hasText() const {
     switch(mType) {
     case TT::Identifier:
     case TT::RealConstant:
@@ -363,9 +363,9 @@ bool simul::Lexeme::hasText() const {
     return false;
 }
 
-std::string simul::Lexeme::stringify() const {
+std::string slang::Lexeme::stringify() const {
     if(hasText()) {
-        return fmt::format("{}: {}", simul::stringifyTokenType(mType), mText);
+        return fmt::format("{}: {}", slang::stringifyTokenType(mType), mText);
     }
-    return std::string(simul::stringifyTokenType(mType));
+    return std::string(slang::stringifyTokenType(mType));
 }

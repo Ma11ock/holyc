@@ -9,15 +9,14 @@
 #include <cstdint>
 #include <list>
 
+#include "type.hpp"
+
 namespace llvm {
     class Value;
 }
 
 namespace slang {
     using LLV = llvm::Value*;
-    using real = double;
-    using integer = std::int64_t;
-    using text = std::string;
 
     class Expression {
     public:
@@ -30,8 +29,7 @@ namespace slang {
 
     using Exp = std::shared_ptr<Expression>;
 
-    class Conditional : public Expression
-    {
+    class Conditional : public Expression {
     public:
         enum class Type {
             None,
@@ -83,19 +81,34 @@ namespace slang {
         Exp mExp;
     };
 
-    class Real : public Expression {
+
+    class Boolean : public Expression,Type {
     public:
-        Real(std::string_view source);
-        Real(real num) : mNum(num) {}
-        virtual ~Real() = default;
+        Boolean(std::string_view source);
+        Boolean(boolean b) : mBool(b) {}
+        virtual ~Boolean() = default;
 
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
+        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Boolean; }
     protected:
-        real mNum;
+        boolean mBool;
     };
 
-    class Integer : public Expression {
+    class Character : public Expression,Type {
+    public:
+        Character(std::string_view source);
+        Character(character c) : mChar(c) {}
+        virtual ~Character() = default;
+
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Character; }
+    protected:
+        character mChar;
+    };
+
+    class Integer : public Expression,Type {
     public:
         Integer(std::string_view source);
         Integer(integer num) : mNum(num) {}
@@ -103,17 +116,32 @@ namespace slang {
 
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
+        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Integer; }
     protected:
         integer mNum;
     };
 
-    class Text : public Expression {
+    class Real : public Expression,Type {
+    public:
+        Real(std::string_view source);
+        Real(real num) : mNum(num) {}
+        virtual ~Real() = default;
+
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Real; }
+    protected:
+        real mNum;
+    };
+
+    class Text : public Expression,Type {
     public:
         Text(const text &t) : mText(t) {}
         virtual ~Text() = default;
 
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
+        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Text; }
     protected:
         text mText;
     };
@@ -129,6 +157,18 @@ namespace slang {
     // protected:
     //     array mArray;
     // };
+
+    class Ref : public Expression,Type {
+    public:
+        Ref(TypeSpecifier ptrType) : mPtrType(ptrType) {}
+        virtual ~Ref() = default;
+
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Ref; }
+    protected:
+        TypeSpecifier mPtrType;
+    };
 
     class Identifier : public Expression {
     public:

@@ -1,6 +1,7 @@
 #include "ast.hpp"
 
 #include <fmt/core.h>
+#include <regex>
 
 // Conditionals.
 
@@ -78,6 +79,51 @@ slang::LLV slang::Real::toLLVM() const {
 std::string slang::Real::stringify() const {
     return fmt::format("Real: {}", mNum);
 }
+
+// Character.
+
+slang::Character::Character(std::string_view source) : mChar('\0') {
+    if(source.size() >= 1) {
+        throw std::invalid_argument("Character: \"{}\" is a string not a character");
+    } else if(source.empty()) {
+        throw std::invalid_argument("Character: source string is empty");
+    }
+
+    mChar = source[0];
+}
+
+slang::LLV slang::Character::toLLVM() const {
+    return nullptr;
+}
+
+std::string slang::Character::stringify() const {
+    return fmt::format("Character: {}", mChar);
+}
+
+// Boolean.
+
+slang::Boolean::Boolean(std::string_view source) : mBool(false) {
+    const static std::regex trueRegex("true", std::regex_constants::icase |
+                                      std::regex_constants::ECMAScript);
+    const static std::regex falseRegex("false", std::regex_constants::icase |
+                                       std::regex_constants::ECMAScript);
+    if(std::regex_match(source.begin(), source.end(), trueRegex)) {
+        mBool = true;
+    } else if(std::regex_match(source.begin(), source.end(), falseRegex)) {
+        mBool = false;
+    } else {
+        throw std::invalid_argument(fmt::format("\"{}\" is not a valid boolean", source));
+    }
+}
+
+slang::LLV slang::Boolean::toLLVM() const {
+    return nullptr;
+}
+
+std::string slang::Boolean::stringify() const {
+    return fmt::format("Boolean: {}", mBool);
+}
+
 
 // Integer.
 

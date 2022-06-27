@@ -15,9 +15,13 @@ cmake_policy(SET CMP0075 NEW)
 set(SRC_SOURCES
   slang.cpp
   lexer/token.cpp
+  parser/parser.cpp
+  parser/ast.cpp
   # Header files.
   slang.hpp
   lexer/token.hpp
+  parser/parser.hpp
+  parser/ast.hpp
   )
 
 

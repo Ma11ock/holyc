@@ -19,8 +19,7 @@ static std::string getSourceFile(const fs::path &path) {
     return buffer.str();
 }
 
-int main(int argc, const char * const * argv)
-{
+int main(int argc, const char * const * argv) {
     using TT = slang::TokenType;
     std::tuple<slang::Lexeme, slang::lexemeLen> curMatch;
     std::string source = getSourceFile("file.s");

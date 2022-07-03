@@ -1,0 +1,21 @@
+
+program ::= block | compound-statement
+
+block ::= unlabeled-block | label: block
+
+unlabeled-block ::= block-head; compound-tail
+
+block-head ::= BEGIN declaration | block-head; declaration
+
+compound-statement ::= unlabeled-compound | label: compound-statement
+
+unlabeled-compound ::= BEGIN compound-tail
+
+compound-tail ::= statement END | statement; compound-tail
+
+
+declaration ::= type-declaration | array-declaration | switch-declaration | procedure-declaration
+
+type-declaration ::= local-or-own-type type-list
+
+local-or-own-type ::= type | OWN type

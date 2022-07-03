@@ -1,38 +1,24 @@
 
 #include <fstream>
-#include <filesystem>
 #include <fmt/core.h>
-#include <sstream>
+#include <fmt/color.h>
+#include <stdexcept>
 #include "slang.hpp"
 #include "lexer/token.hpp"
-
-namespace fs = std::filesystem;
-
-static std::string getSourceFile(const fs::path &path) {
-    std::ifstream sourceFile(path);
-    if(sourceFile.bad() || sourceFile.fail()) {
-        throw std::invalid_argument("Not good :/");
-    }
-
-    std::stringstream buffer;
-    buffer << sourceFile.rdbuf();
-    return buffer.str();
-}
+#include "parser/parser.hpp"
+#include "config.hpp"
 
 int main(int argc, const char * const * argv) {
-    using TT = slang::TokenType;
-    std::tuple<slang::Lexeme, slang::lexemeLen> curMatch;
-    std::string source = getSourceFile("file.s");
-    std::string_view sourcePtr = source;
-    while(std::get<0>((curMatch = slang::lexerPull(sourcePtr))) != TT::Eof) {
-        auto &[curLexeme, curLexemeLen] = curMatch;
-
-        if(curLexeme == TT::Error) {
-            throw std::runtime_error("Invalid code.");
+    try {
+        slang::Config programConfig(std::vector<std::string_view>(argv + 1, argv + argc));
+        for(const auto &sourcePath : programConfig.getSourcePaths()) {
+            auto parser = slang::ParseTree::parse(sourcePath);
+            //parser->compile(programConfig.getOutputPath());
         }
-
-        sourcePtr = std::string_view(sourcePtr.begin() + curLexemeLen,
-                                     sourcePtr.size() - curLexemeLen);
+    } catch (std::exception &e) {
+        fmt::print(fmt::emphasis::bold, "{}-{}: ", slang::NAME, slang::VERSION);
+        fmt::print(fmt::emphasis::bold | fg(fmt::color::red), "fatal error: ");
+        fmt::print("{}\n", e.what());
     }
     return 0;
 }

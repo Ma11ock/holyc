@@ -14,17 +14,18 @@ cmake_policy(SET CMP0075 NEW)
 # Set the source files.
 set(SRC_SOURCES
   slang.cpp
+  config.cpp
   lexer/token.cpp
   parser/parser.cpp
   parser/ast.cpp
   # Header files.
   slang.hpp
+  config.hpp
   lexer/token.hpp
   parser/parser.hpp
   parser/ast.hpp
+  parser/llvm.cpp
   )
-
-
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -51,7 +52,7 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 # Linking
 
-llvm_map_components_to_libnames(llvm_libs support core irreader)
+#llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 target_link_libraries(
   ${BINARY}
@@ -59,7 +60,7 @@ target_link_libraries(
   ${CMAKE_REQUIRED_LIBRARIES}
   m
   fmt
-  ${llvm_libs})
+  LLVM)
 
 # Include directories.
 target_include_directories(${BINARY} PUBLIC ${SLANG_FMT_PATH})

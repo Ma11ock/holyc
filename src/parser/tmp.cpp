@@ -1,154 +1,115 @@
-#ifndef SLANG_AST_HPP
-#define SLANG_AST_HPP
-
-#include <memory>
-#include <string_view>
-#include <stdexcept>
-#include <fmt/core.h>
-#include <charconv>
-#include <cstdint>
-#include <list>
-#include <unordered_map>
-
-#include "type.hpp"
-#include "../slang.hpp"
-
-namespace llvm {
-    class Value;
-}
-
-namespace slang {
-    using LLV = llvm::Value*;
-
-    class GrammarRule {
-    public:
-        GrammarRule() = default;
-        virtual ~GrammarRule() = default;
-        virtual LLV toLLVM() const = 0;
-        virtual std::string stringify() const = 0;
-    };
-
-    using GR = std::shared_ptr<GrammarRule>;
 
     class Expression : public GrammarRule {
     public:
         Expression() = default;
         virtual ~Expression() = default;
+        virtual LLV toLLVM() const = 0;
+        virtual std::string stringify() const = 0;
     protected:
     };
 
     using Exp = std::shared_ptr<Expression>;
 
+    class Conditional : public Expression {
+    public:
+        enum class Type {
+            None,
+            Or,
+            And,
+        };
+
+        Conditional(Type type, Exp cond1);
+        Conditional(Type type, Exp cond1, Exp cond2);
+        virtual ~Conditional() = default;
+
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+
+        std::string_view stringifyType() const {
+            switch(mType) {
+            case Type::None:
+                return "None";
+                break;
+            case Type::And:
+                return "And";
+                break;
+            case Type::Or:
+                return "Or";
+                break;
+            default:
+                break;
+            }
+            throw std::invalid_argument("TODO");
+        }
+    protected:
+        /// Type of conditional.
+        Type mType;
+        /// First conditional.
+        Exp mCond1;
+        //// Second conditional, is nullptr if Type == None.
+        Exp mCond2;
+    };
+
+
+    class Negate : public Expression {
+    public:
+        Negate(Exp exp) : mExp(exp) {
+        }
+        virtual ~Negate() = default;
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+    protected:
+        Exp mExp;
+    };
+
+    // TODO array
+    // class Array : public Expression {
+    // public:
+    //     Array(const array &t) : mArray(t) {}
+    //     virtual ~Array() = default;
+
+    //     virtual LLV toLLVM() const;
+    //     virtual std::string stringify() const;
+    // protected:
+    //     array mArray;
+    // };
+
+    class Ref : public Expression,Type {
+    public:
+        Ref(TypeSpecifier ptrType) : mPtrType(ptrType) {}
+        virtual ~Ref() = default;
+
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Ref; }
+    protected:
+        TypeSpecifier mPtrType;
+    };
+
     class Identifier : public Expression {
     public:
         Identifier(const std::string &id) : mId(id) {}
-        Identifier(std::string_view id) : mId(std::string(id)) {}
         virtual ~Identifier() = default;
 
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
         LLV getLoad() const;
-        inline std::string_view getID() const { return mId; }
-        inline std::string getIDCopy() const { return mId; }
-
-        inline bool operator==(const Identifier &other) {
-            return mId == other.mId;
-        }
-
-        inline bool operator!=(const Identifier &other) {
-            return mId != other.mId;
-        }
-
-        inline bool operator==(const std::shared_ptr<Identifier> &other) {
-            if(other) {
-                return mId == other->mId;
-            }
-            return false;
-        }
-
-        inline bool operator!=(const std::shared_ptr<Identifier> &other) {
-            if(other) {
-                return mId != other->mId;
-            }
-            return false;
-        }
 
     protected:
         std::string mId;
     };
 
-    class UnaryOperator : public Expression {
-    public:
-        UnaryOperator(Exp exp = nullptr) : mExp(exp) {}
-        virtual ~UnaryOperator() = default;
-
-        virtual std::string stringify() const;
-
-        bool isTmp() const {
-            return mExp != nullptr;
-        }
-    protected:
-        Exp mExp;
-    };
-
-    class Negate : public UnaryOperator {
-    public:
-        Negate(Exp exp) : UnaryOperator(exp) {}
-        virtual ~Negate() = default;
-        virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
-    };
-
-    class UnaryPlus : public UnaryOperator {
-    public:
-        UnaryPlus(Exp exp) : UnaryOperator(exp) {}
-        virtual ~UnaryPlus() = default;
-        virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
-    };
-
     class BinaryOperator : public Expression {
-    public:
-        BinaryOperator(Exp left, Exp right);
-        BinaryOperator() : mLeft(nullptr),mRight(nullptr) {}
-        virtual ~BinaryOperator() = default;
-
-        virtual std::string stringify() const;
-        virtual std::string_view getBOpName() const = 0;
-
-        bool isTmp() const {
-            return mLeft != nullptr && mRight != nullptr;
-        }
     protected:
         Exp mLeft;
         Exp mRight;
-    };
-
-    class RelationalOperator : public BinaryOperator {
     public:
-        RelationalOperator(Exp left, Exp right)
-            : BinaryOperator(left, right) {}
-        virtual ~RelationalOperator() = default;
-    };
+        virtual ~BinaryOperator() = default;
+        BinaryOperator(Exp left, Exp right)
+            : mLeft(left),mRight(right) {
+        }
 
-    class LogicalAnd : public BinaryOperator {
-    public:
-        LogicalAnd(Exp left, Exp right) : BinaryOperator(left, right) {}
-        virtual ~LogicalAnd() = default;
-
-        virtual LLV toLLVM() const;
         virtual std::string stringify() const;
-        virtual std::string_view getName() const;
-    };
-
-    class LogicalOr : public BinaryOperator {
-    public:
-        LogicalOr(Exp left, Exp right) : BinaryOperator(left, right) {}
-        virtual ~LogicalOr() = default;
-
-        virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
-        virtual std::string_view getName() const;
     };
 
     class Plus : public BinaryOperator {
@@ -188,85 +149,72 @@ namespace slang {
         virtual std::string stringify() const;
     };
 
-    class LessThanEqual : public RelationalOperator {
+    class LessThanEqual : public BinaryOperator {
     public:
         virtual ~LessThanEqual() = default;
         LessThanEqual(Exp left, Exp right)
-            : RelationalOperator(left, right) {}
+            : BinaryOperator(left, right) {}
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
     };
 
-    class LessThan : public RelationalOperator {
+    class LessThan : public BinaryOperator {
     public:
         virtual ~LessThan() = default;
         LessThan(Exp left, Exp right)
-            : RelationalOperator(left, right) {}
+            : BinaryOperator(left, right) {}
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
     };
 
-    class GreaterThanEqual : public RelationalOperator {
+    class GreaterThanEqual : public BinaryOperator {
     public:
         virtual ~GreaterThanEqual() = default;
         GreaterThanEqual(Exp left, Exp right)
-            : RelationalOperator(left, right) {}
+            : BinaryOperator(left, right) {}
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
     };
 
-    class GreaterThan : public RelationalOperator {
+    class GreaterThan : public BinaryOperator {
     public:
         virtual ~GreaterThan() = default;
         GreaterThan(Exp left, Exp right)
-            : RelationalOperator(left, right) {}
+            : BinaryOperator(left, right) {}
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
     };
 
 
-    class NotEquals : public RelationalOperator {
+    class NotEquals : public BinaryOperator {
     public:
         virtual ~NotEquals() = default;
         NotEquals(Exp left, Exp right)
-            : RelationalOperator(left, right) {}
+            : BinaryOperator(left, right) {}
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
     };
 
-    class Equals : public RelationalOperator {
+    class Equals : public BinaryOperator {
     public:
         virtual ~Equals() = default;
         Equals(Exp left, Exp right)
-            : RelationalOperator(left, right) {}
+            : BinaryOperator(left, right) {}
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
-    };
-
-    class IntegerConstant : public Expression {
-    public:
-        IntegerConstant(std::uint32_t value) : mValue(value) {}
-        IntegerConstant(std::string_view value);
-        virtual ~IntegerConstant() = default;
-        virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
-    protected:
-        std::uint32_t mValue;
     };
 
     // Statements.
 
-    class Statement : public GrammarRule {
+    class Statement : public Expression {
     public:
         virtual ~Statement() = default;
-        virtual LLV toLLVM() const = 0;
-        virtual std::string stringify() const = 0;
     };
 
     using Stmnt = std::shared_ptr<Statement>;
     using StatementList = std::list<Stmnt>;
 
-    class Assign : public Statement,Expression {
+    class Assign : public Statement {
     public:
         Assign(const std::string &name, Exp exp) :
             mId(std::make_shared<Identifier>(name)),mExp(exp) {}
@@ -278,27 +226,6 @@ namespace slang {
         std::shared_ptr<Identifier> mId;
         /// Rhs.
         Exp mExp;
-    };
-
-    class Block : public Statement {
-    public:
-        virtual ~Block() = default;
-
-        Block(const StatementList &statements) : mStatements(statements) {}
-        Block() = default;
-
-        StatementList getStatements() const {
-            return mStatements;
-        }
-
-        bool isEmpty() const {
-            return mStatements.empty();
-        }
-
-        virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
-    protected:
-        StatementList mStatements;
     };
 
     class While : public Statement {
@@ -318,14 +245,14 @@ namespace slang {
     class If : public Statement {
     public:
         using List = std::list<std::shared_ptr<If>>;
-        If(Exp boolexp, const StatementList &statements) :
-            mBoolExp(boolexp),mStatements(std::make_shared<Block>(statements)),
+        If(Exp boolExp, const StatementList &statements) :
+            mBoolExp(boolExp),mStatements(std::make_shared<Block>(statements)),
             mElifBlocks({}),mElse() {}
 
-        If(Exp boolexp, const StatementList &statements,
+        If(Exp boolExp, const StatementList &statements,
            const List &elifBlocks,
            const StatementList &elseStatements) :
-            mBoolExp(boolexp),mStatements(std::make_shared<Block>(statements)),
+            mBoolExp(boolExp),mStatements(std::make_shared<Block>(statements)),
             mElifBlocks(elifBlocks),mElse(std::make_shared<Block>(elseStatements)) {}
         virtual ~If() = default;
 
@@ -359,6 +286,19 @@ namespace fmt {
                 return format_to(ctx.out(), "{}", exp->stringify());
             }
             return format_to(ctx.out(), "0x{:x}", static_cast<std::size_t>(0));
+        }
+    };
+
+    template<>
+    struct formatter<slang::Conditional> {
+        template<typename P>
+        constexpr auto parse(P &ctx) {
+            return ctx.begin();
+        }
+
+        template<typename FormatContext>
+        auto format(const slang::Conditional &val, FormatContext &ctx) {
+            return format_to(ctx.out(), "{}", val.stringify());
         }
     };
 
@@ -426,5 +366,3 @@ namespace fmt {
         }
     };
 }
-
-#endif /* SLANG_AST_HPP */

@@ -8,8 +8,9 @@
 #include <fmt/core.h>
 
 using TT = slang::TokenType;
+using namespace std::string_view_literals;
 
-class Token {
+static class Token {
 protected:
     std::regex mRegex;
     slang::TokenType mType;
@@ -47,7 +48,6 @@ public:
 
         switch(mType) {
         case TT::Identifier:
-        case TT::RealConstant:
         case TT::IntegerConstant:
         case TT::StringConstant:
         case TT::CharacterConstant:
@@ -61,79 +61,92 @@ public:
 };
 
 
-std::tuple<slang::Lexeme, slang::lexemeLen> slang::lexerPull(std::string_view source) {
-
+slang::Lexeme slang::Lexeme::pull(std::string_view source, slang::linenoType lineNum) {
     const static std::array TOKENS = {
         // EOF
         Token("^$", TT::Eof),
         // Whitespace, comments, etc.
-        Token("^\\s+|^(\\!|comment)[^;]*;", TT::Space),
+        Token("^\\s+|\\/\\/.*|\\/\\/*(\\S\\s)*\\*\\/", TT::Space),
         // Keywords.
-        Token("^begin", TT::Begin),
-        Token("^end", TT::End),
+        Token("^{", TT::LCurlyBracket),
+        Token("^}", TT::RCurlyBracket),
         Token("^if", TT::If),
-        Token("^then", TT::Then),
         Token("^else", TT::Else),
-        Token("^slangation", TT::Slangation),
+        Token("^else\\s+if", TT::ElseIf),
         Token("^class", TT::Class),
-        Token("^virtual", TT::Virtual),
-        Token("^is", TT::Is),
-        Token("^ref", TT::Ref),
-        Token("^new", TT::New),
-        Token("^array", TT::Array),
-        Token("^do", TT::Do),
-        Token("^step", TT::Step),
-        Token("^until", TT::Until),
-        Token("^activate", TT::Activate),
         Token("^while", TT::While),
         Token("^for", TT::For),
-        Token("^true", TT::True),
-        Token("^false", TT::False),
         Token("^boolean", TT::Boolean),
-        Token("^integer", TT::Integer),
-        Token("^real", TT::Real),
-        Token("^text", TT::Text),
-        Token("^name", TT::Name),
-        Token("^go to", TT::Goto),
-        // Operators and grammars.
+        Token("^I8i", TT::I8i),
+        Token("^I16i", TT::I16i),
+        Token("^I32i", TT::I32i),
+        Token("^I64i", TT::I64i),
+        Token("^U0i|^I0i", TT::U0i),
+        Token("^U8i", TT::U8i),
+        Token("^U16i", TT::U16i),
+        Token("^U32i", TT::U32i),
+        Token("^U64i", TT::U64i),
+        Token("^goto", TT::Goto),
+        Token("^switch", TT::Switch),
+        Token("^case", TT::Case),
+        Token("^import", TT::Import),
+        Token("^extern", TT::Extern),
+        Token("^\\_import", TT::_Import),
+        Token("^\\_extern", TT::_Extern),
+        Token("^try", TT::Try),
+        Token("^catch", TT::Catch),
+        Token("^throw", TT::Throw),
+        // Operators and misc. grammar symbols.
+        Token("^sizeof", TT::Sizeof),
+        Token("^\\?", TT::QuestionMark),
+        Token("^\\&", TT::Ampersand),
+        Token("^\\|", TT::BitwiseOr),
+        Token("^\\~", TT::BitwiseNot),
+        Token("^\\^", TT::BitwiseXor),
         Token("^\\:", TT::Colon),
-        Token("^\\*", TT::Times),
+        Token("^\\*", TT::Star),
         Token("^\\+", TT::Plus),
         Token("^\\-", TT::Minus),
-        Token("^\\%", TT::Divide),
-        Token("^\\^", TT::Power),
-        Token("^\\&", TT::Strcat),
-        Token("^:\\=", TT::Assign),
+        Token("^\\/", TT::Divide),
+        Token("^\\`", TT::Power),
+        Token("^=", TT::Equals),
         Token("^\\;", TT::Semicolon),
         Token("^\\(", TT::Lparen),
         Token("^\\)", TT::Rparen),
         Token("^\\.", TT::Dot),
         Token("^\\[", TT::Lbracket),
         Token("^\\]", TT::Rbracket),
+        Token("^,", TT::Comma),
         Token("^\\<", TT::LessThan),
         Token("^\\<\\=", TT::LessThanEqual),
         Token("^\\>", TT::GreaterThan),
         Token("^\\>\\=", TT::GreaterThanEqual),
-        Token("^\\=", TT::Equality),
-        Token("^\\<\\>", TT::Inequality),
-        Token("^,", TT::Comma),
+        Token("^\\=\\=", TT::Equality),
+        Token("^\\!\\=", TT::Inequality),
+        Token("^\\&\\&", TT::LogicalAnd),
+        Token("^\\|\\|", TT::LogicalOr),
+        Token("^\\!", TT::LogicalNot),
+        Token("^\\>\\>", TT::BitshiftRight),
+        Token("^\\<\\<", TT::BitshiftLeft),
         // Constants.
         Token("^'.'", TT::CharacterConstant),
         Token("^\".*\"", TT::StringConstant),
         Token("^[-0-9]+", TT::IntegerConstant),
-        Token("^[-.0-9]+", TT::RealConstant),
+        Token("^[-.0-9]+", TT::FloatConstant),
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
+        Token("^[_a-zA-Z][_\\w]*:", TT::Label),
+        Token("^0x[-0-9A-Fa-f]+", TT::HexadecimalConstant),
+        Token("^0[-0-7]+", TT::OctalConstant),
     };
 
-    // Get matched tokens and store them in a lexeme. We use a tuple with a
-    // string_view just to avoid allocations.
-    std::array<std::tuple<slang::Lexeme, std::string_view>, TOKENS.size()> matchedTokens;
+    // Get matched tokens and store them in a lexeme.
+    std::array<slang::Lexeme, TOKENS.size()> matchedTokens;
     std::size_t i = 0;
     for(const auto &token : TOKENS) {
         auto [matched, match] = token.match(source);
         if(matched) {
-            matchedTokens[i++] = std::make_tuple(slang::Lexeme(token.getTokenType()),
-                                                 match);
+            matchedTokens[i++] = slang::Lexeme(token.getTokenType(),
+                                               match, lineNum);
         }
     }
 
@@ -147,94 +160,57 @@ std::tuple<slang::Lexeme, slang::lexemeLen> slang::lexerPull(std::string_view so
     // defined first.
 
     slang::lexemeLen longestTokenLen = 0;
-    slang::Lexeme longestToken = slang::Lexeme("", slang::TokenType::Error);
+    slang::Lexeme longestToken = slang::Lexeme(""sv, slang::TokenType::Error);
     std::string_view longestMatchStr;
 
     for(auto it = matchedTokens.rbegin() + matchedTokens.size() - i;
         it < matchedTokens.rend(); it++) {
-        auto &[r, s] = *it;
-        if(auto rlen = s.size();
+        auto &r = *it;
+        if(auto rlen = r.getTextLength();
            rlen >= longestTokenLen) {
             longestTokenLen = rlen;
             longestToken = r;
-            longestMatchStr = s;
         }
     }
 
     if(longestToken.hasText()) {
-        longestToken = slang::Lexeme(std::string(longestMatchStr),
-                                     longestToken.getTokenType());
+        longestToken = slang::Lexeme(longestMatchStr, longestToken.getTokenType());
     }
 
-    return std::make_tuple(longestToken, longestTokenLen);
+    return longestToken;
 }
-
-
 
 std::string_view slang::stringifyTokenType(TokenType type) {
     switch(type) {
-    case TT::Space:
-        return "Space";
+    case TT::Error:
+        return "Error";
         break;
     case TT::Eof:
         return "EOF";
         break;
-    case TT::Error:
-        return "Error";
+    case TT::LCurlyBracket:
+        return "LCurlyBracket";
         break;
-    case TT::Begin:
-        return "Begin";
-        break;
-    case TT::End:
-        return "End";
+    case TT::RCurlyBracket:
+        return "RCurlyBracket";
         break;
     case TT::If:
         return "If";
         break;
-    case TT::Then:
-        return "Then";
-        break;
     case TT::Else:
         return "Else";
         break;
-    case TT::Procedure:
-        return "Procedure";
-        break;
-    case TT::Slangation:
-        return "Slangation";
+    case TT::ElseIf:
+        return "ElseIf";
         break;
     case TT::Class:
         return "Class";
         break;
-    case TT::Virtual:
-        return "Virtual";
+    case TT::Enum:
+        return "Enum";
         break;
-    case TT::Is:
-        return "Is";
-        break;
-    case TT::Ref:
-        return "Ref";
-        break;
-    case TT::New:
-        return "New";
-        break;
-    case TT::Array:
-        return "Array";
-        break;
-    case TT::Do:
-        return "Do";
-        break;
-    case TT::Step:
-        return "Step";
-        break;
-    case TT::Name:
-        return "Name";
-        break;
-    case TT::Until:
-        return "Until";
-        break;
-    case TT::Activate:
-        return "Activate";
+    case TT::Union:
+        return "Union";
         break;
     case TT::While:
         return "While";
@@ -242,26 +218,68 @@ std::string_view slang::stringifyTokenType(TokenType type) {
     case TT::For:
         return "For";
         break;
-    case TT::True:
-        return "True";
-        break;
-    case TT::False:
-        return "False";
-        break;
     case TT::Boolean:
         return "Boolean";
         break;
-    case TT::Integer:
-        return "Integer";
+    case TT::I8i:
+        return "I8i";
         break;
-    case TT::Real:
-        return "Real";
+    case TT::I16i:
+        return "I16i";
         break;
-    case TT::Text:
-        return "Text";
+    case TT::I32i:
+        return "I32i";
+        break;
+    case TT::I64i:
+        return "I64i";
+        break;
+    case TT::U0i:
+        return "U0i";
+        break;
+    case TT::U8i:
+        return "U8i";
+        break;
+    case TT::U16i:
+        return "U16i";
+        break;
+    case TT::U32i:
+        return "U32i";
+        break;
+    case TT::U64i:
+        return "U64i";
+        break;
+    case TT::F64:
+        return "F64";
         break;
     case TT::Goto:
-        return "Go to";
+        return "Goto";
+        break;
+    case TT::Switch:
+        return "Switch";
+        break;
+    case TT::Case:
+        return "Case";
+        break;
+    case TT::Extern:
+        return "Extern";
+        break;
+    case TT::Import:
+        return "Import";
+        break;
+    case TT::_Extern:
+        return "_Extern";
+        break;
+    case TT::_Import:
+        return "_Import";
+        break;
+    case TT::Try:
+        return "Try";
+        break;
+    case TT::Catch:
+        return "Catch";
+        break;
+    case TT::Throw:
+        return "Throw";
         break;
     case TT::Plus:
         return "Plus";
@@ -269,23 +287,20 @@ std::string_view slang::stringifyTokenType(TokenType type) {
     case TT::Minus:
         return "Minus";
         break;
-    case TT::Times:
-        return "Times";
+    case TT::Star:
+        return "Star";
         break;
     case TT::Divide:
         return "Divide";
         break;
-    case TT::Power:
-        return "Power";
+    case TT::Modulo:
+        return "Modulo";
         break;
     case TT::Identifier:
         return "Identifier";
         break;
-    case TT::Assign:
-        return "Assign";
-        break;
-    case TT::Strcat:
-        return "Strcat";
+    case TT::Equals:
+        return "Equals";
         break;
     case TT::LessThan:
         return "LessThan";
@@ -304,6 +319,42 @@ std::string_view slang::stringifyTokenType(TokenType type) {
         break;
     case TT::Inequality:
         return "Inequality";
+        break;
+    case TT::Power:
+        return "Power";
+        break;
+    case TT::LogicalAnd:
+        return "LogicalAnd";
+        break;
+    case TT::LogicalOr:
+        return "LogicalOr";
+        break;
+    case TT::LogicalNot:
+        return "LogicalNot";
+        break;
+    case TT::Ampersand:
+        return "Ampersand";
+        break;
+    case TT::BitwiseOr:
+        return "BitwiseOr";
+        break;
+    case TT::BitwiseXor:
+        return "BitwiseXor";
+        break;
+    case TT::BitwiseNot:
+        return "BitwiseNot";
+        break;
+    case TT::BitshiftLeft:
+        return "BitshiftLeft";
+        break;
+    case TT::BitshiftRight:
+        return "BitshiftRight";
+        break;
+    case TT::QuestionMark:
+        return "QuestionMark";
+        break;
+    case TT::Sizeof:
+        return "Sizeof";
         break;
     case TT::Semicolon:
         return "Semicolon";
@@ -329,11 +380,20 @@ std::string_view slang::stringifyTokenType(TokenType type) {
     case TT::Comma:
         return "Comma";
         break;
+    case TT::DoubleQuote:
+        return "DoubleQuote";
+        break;
+    case TT::SingleQuote:
+        return "SingleQuote";
+        break;
+    case TT::TripleDot:
+        return "TripleDot";
+        break;
     case TT::CharacterConstant:
         return "CharacterConstant";
         break;
-    case TT::RealConstant:
-        return "RealConstant";
+    case TT::FloatConstant:
+        return "FloatConstant";
         break;
     case TT::IntegerConstant:
         return "IntegerConstant";
@@ -341,14 +401,26 @@ std::string_view slang::stringifyTokenType(TokenType type) {
     case TT::StringConstant:
         return "StringConstant";
         break;
+    case TT::Label:
+        return "Label";
+        break;
+    case TT::HexadecimalConstant:
+        return "HexadecimalConstant";
+        break;
+    case TT::OctalConstant:
+        return "OctalConstant";
+        break;
+    case TT::Space:
+        return "Space";
+        break;
     }
-    throw std::invalid_argument("Kek!");
+    throw std::invalid_argument(fmt::format("Invalid token: (integer){}",
+                                            static_cast<std::uint32_t>(type)));
 }
 
 bool slang::Lexeme::hasText() const {
     switch(mType) {
     case TT::Identifier:
-    case TT::RealConstant:
     case TT::IntegerConstant:
     case TT::StringConstant:
     case TT::CharacterConstant:

@@ -1,0 +1,305 @@
+; Simple, pure BNF definition of HolyC
+; (like the BNF in https://www.cs.unc.edu/~plaisted/comp455/Algol60.pdf).
+; Derived from the C BNF from https://cs.wmich.edu/~gupta/teaching/cs4850/sumII06/The%20syntax%20of%20C%20in%20Backus-Naur%20form.htm
+; and Section A13 of The C programming language, 2nd edition, by Brian W. Kernighan and Dennis M. Ritchie,Prentice Hall, 1988.
+
+<program> ::= <external-declaration>
+          | <program> <external-declaration>
+
+<external-declaration> ::= <function-definition>
+                       |  <declaration>
+
+<function-definition> ::= <declaration-specifier-list> <declarator> <declaration-list> <coumpound-statement>
+                      | <declarator> <declaration-list> <coumpound-statement>
+                      | <declaration-specifier-list> <declarator> <coumpound-statement>
+                      | <declarator> <coumpound-statement>
+
+<declaration-list> ::= <declaration-list> <declaration>
+                   | <declaration>
+
+<declaration> ::= <declaration-specifier-list> ;
+              | <declaration-specifier-list> <init-declarator-list> ;
+
+<declaration-specifier-list> ::= <declaration-specifier-list> <declaration-specifier>
+                             | <declaration-specifier>
+
+<declaration-specifier> ::= <storage-class-specifier>
+                        | <type-specifier>
+                        | <type-qualifier>
+
+<storage-class-specifier> ::= reg
+                          | noreg
+                          | public
+                          | static
+                          | extern
+                          | _extern
+<type-specifier> ::= U0i
+                 | U8i
+                 | U16i
+                 | U32i
+                 | U64i
+                 | I0i
+                 | I8i
+                 | I16i
+                 | I32i
+                 | I64i
+                 | F64
+                 | <class-or-union-specifier>
+                 | <enum-specifier>
+
+<class-or-union-specifier> ::= <class-or-union> <identifier> { <class-declaration-list> }
+                           | <class-or-union> { <class-declaration-list> }
+                           | <class-or-union> <identifier>
+
+<class-or-union> ::= class | union
+
+<type-qualifier> ::= const
+                 | volatile
+
+<class-declaration-list> ::= <class-declaration-list> <class-declaration>
+                         | <class-declaration>
+
+<init-declarator-list> ::= <init-declarator-list> , <init-declarator>
+                       | <init-declarator>
+
+<init-declarator> ::= <declarator>
+                  | <declarator> = <initializer>
+
+<class-declaration> ::= <specifier-qualifer-list> <class-declaration-list> ;
+
+<specifier-qualifer-list> ::= <specifier-qualifer-list> <type-specifier>
+                          | <specifier-qualifer-list> <type-qualifier>
+                          | <type-specifier>
+                          | <type-qualifier>
+
+<class-declarator-list> ::= <class-declarator-list> , <class-declarator>
+                        | <class-declarator>
+
+<class-declarator> ::= <class-declarator>
+                   | <class-declarator> : <constant-expression>
+                   | : <constant-expression>
+
+<enum-specifier> ::= enum { <enumerator-list> }
+                 | enum <identifier> { <enumerator-list> }
+                 | enum <identifier>
+
+<enumerator-list> ::= <enumerator-list> <enumerator>
+                  | <enumerator>
+
+<enumerator> ::= <identifier> = <constant-expression>
+             | <identifier>
+
+<declarator> ::= <direct-declarator>
+             | <pointer> <direct-declarator>
+
+<direct-declarator> ::= <identifier>
+                    | ( <declarator> )
+                    | <direct-declarator> [ ]
+                    | <direct-declarator> [ <constant-expression> ]
+                    | <direct-declarator> ( <parameter-type-list> )
+                    | <direct-declarator> ( <identifier-list> )
+                    | <direct-declarator> ( )
+<pointer> ::= *
+          | * <type-qualifier-list>
+          | <pointer> *
+          | <pointer> * <type-qualifier-list>
+
+<type-qualifier-list> ::= <type-qualifier-list> <type-qualifier>
+                      | <type-qualifier>
+
+<parameter-type-list> ::= <parameter-list>
+                      | <parameter-list>, ...
+
+<parameter-list> ::= <parameter-list> , <paramater-declaration>
+                 | <paramater-declaration>
+
+<paramater-declaration> ::= <declaration-specifier-list> <declarator>
+                        | <declaration-specifier-list> <abstract-declarator>
+                        | <declaration-specifier-list>
+
+<identifier-list> ::= <identifier-list> <identifier>
+                  | <identifier>
+
+<initializer> ::= <assignment-expression>
+              | { <initializer-list> }
+              | { <initializer-list> , }
+
+<initializer-list> ::= <initializer-list> , <initializer>
+                   | <initializer>
+
+<type-name> ::= <specifier-qualifer-list> <abstract-declarator>
+            | <specifier-qualifer-list>
+
+<abstract-declarator> ::= <pointer>
+                      | <pointer> <direct-abstract-declarator>
+                      | <direct-abstract-declarator>
+
+
+<direct-abstract-declarator> ::= ( <abstract-declarator> )
+                             | <direct-abstract-declarator> [ <constant-expression> ]
+                             | <direct-abstract-declarator> ( <parameter-type-list> )
+                             | [ <constant-expression> ]
+                             | ( <parameter-type-list> )
+                             | <direct-abstract-declarator> [ ]
+                             | <direct-abstract-declarator> ( )
+                             | [ ]
+                             | ( )
+
+<statement> ::= <labelled-statement>
+            | <expression-statement>
+            | <compound-statement>
+            | <selection-statement>
+            | <iteration-statement>
+            | <jump-statement>
+
+<labelled-statement> ::= <identifier> : <statement>
+                     | case <constant-expression> : <statement>
+                     | default : <statement>
+
+<expression-statement> ::= <expression> ;
+                       | ;
+
+<compound-statement> ::= { <declaration-list> <statement-list> }
+                     | { <statement-list> }
+                     | { <declaration-list> }
+                     | { }
+
+<statement-list> ::= <statement-list> <statement>
+                 | <statement>
+
+<selection-statement> ::= if ( <expression> ) <statement>
+                      | if ( <expression> ) <statement> else <statement>
+                      | switch ( <expression> ) <statement>
+
+<iteration-statement> ::= while ( <expression> ) <statement>
+                      | do <statement> while ( <expression> ) ;
+                      | for ( <expression> ; <expression> ; <expression> ) <statement>
+                      | for ( <expression> ; <expression> ; ) <statement>
+                      | for ( <expression> ; ; <expression> ) <statement>
+                      | for ( <expression> ; ; ) <statement>
+                      | for ( ; <expression ; <expression> ) <statement>
+                      | for ( ; <expression> ; ) <statement>
+                      | for ( ; ; <expression> ) <statement>
+                      | for ( ; ; ) <statement>
+
+<jump-statement> ::= goto <identifier> ;
+                 | break ;
+                 | return <expression> ;
+                 | return ;
+
+<expression> ::= <expression> , <assignment-expression>
+             | <assignment-expression>
+
+<assignment-expression> ::= <unary-expression> <assignment-operator> <assignment-expression>
+                        | <conditional-expression>
+
+; When < or > appear on the below lines they are escaped to make bnf-mode in emacs
+; bearable to use.
+<assignment-operator> ::= =
+                      | *=
+                      | /=
+                      | %=
+                      | +=
+                      | -=
+                      | \<\<=
+                      | \>\>=
+                      | &=
+                      | ^=
+                      | |=
+
+<conditional-expression> ::= <logical-or-expression> ? <expression> : <conditional-expression>
+                         | <logical-or-expression>
+
+<constant-expression> ::= <conditional-expression>
+
+<logical-or-expression> ::= <logical-or-expression> || <logical-and-expression>
+                        | <logical-and-expression>
+
+<logical-and-expression> ::= <inclusive-or-expression> && <inclusive-or-expression>
+                         | <inclusive-or-expression>
+
+; Pipe on this line is literal char | and is part of the first expansion.
+<inclusive-or-expression> ::= <inclusive-or-expression> | <exclusive-or-expression>
+                          | <exclusive-or-expression>
+
+<exclusive-or-expression> ::= <exclusive-or-expression> ^ <and-expression>
+                          | <and-expression>
+
+<and-expression> ::= <and-expression> & <equality-expression>
+                 | <equality-expression>
+
+<equality-expression> ::= <equality-expression> == <relational-expression>
+                      | <equality-expression> != <relational-expression>
+                      | <relational-expression>
+
+<relational-expression> ::= <relational-expression> \< <shift-expression>
+                        |  <relational-expression> \> <shift-expression>
+                        |  <relational-expression> \<= <shift-expression>
+                        |  <relational-expression> \>= <shift-expression>
+                        | <shift-expression>
+
+
+<shift-expression> ::= <shift-expression> \<\< <additive-expression>
+                   | <shift-expression> \>\> <additive-expression>
+                   | <additive-expression>
+
+<additive-expression> ::= <additive-expression> + <multiplicative-expression>
+                      | <additive-expression> - <multiplicative-expression>
+                      | <multiplicative-expression>
+
+<multiplicative-expression> ::= <multiplicative-expression> * <cast-expression>
+                            | <multiplicative-expression> / <cast-expression>
+                            | <multiplicative-expression> % <cast-expression>
+                            | <cast-expression>
+
+; This is why Davis made casting postfix.
+<cast-expression> ::= <cast-expression> ( <type-name> )
+                  | <unary-expression>
+
+<unary-expression> ::= ++ <unary-expression>
+                   | -- <unary-expression>
+                   | <unary-operator> <cast-expression>
+                   | sizeof ( <unary-operator> )
+                   | sizeof ( <type-name> )
+                   | <postfix-expression>
+
+<unary-operator> ::= &
+                 | *
+                 | +
+                 | -
+                 | ~
+                 | !
+
+<postfix-expression> ::= <postfix-expression> [ <expression> ]
+                     | <postfix-expression> ( <argument-expression-list> )
+                     | <postfix-expression> ( )
+                     | <postfix-expression> . <identifier>
+                     | <postfix-expression> -\> <identifier>
+                     | <postfix-expression> ++
+                     | <postfix-expression> --
+                     | <primary-expression>
+
+<primary-expression> ::= <identifier>
+                     | <constant>
+                     | <string>
+                     | ( <expression> )
+
+<argument-expression-list> ::= <assignment-expression-list> , <assignment-expression>
+                           | <assignment-expression>
+
+<constant> ::= <integer-constant>
+           | <character-constant>
+           | <floating-constant>
+           | <enumeration-constant>
+
+; C++ Regular expressions for the remaining rules.
+
+<identifier> ::= "[_a-zA-Z][_\\w]*"
+
+<integer-constant> ::= "[-0-9]+|0x[-0-9A-Fa-f]+|^0[-0-7]+"
+
+<floating-constant> ::= "[-.0-9]+"
+
+<character-constant> ::= "'.{1,8}'"
+
+<string-constant> ::= "\".*\""

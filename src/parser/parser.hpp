@@ -5,22 +5,24 @@
 #include <filesystem>
 #include <stdexcept>
 #include <vector>
+#include <memory>
 #include "ast.hpp"
+#include "../lexer/token.hpp"
+#include "../config.hpp"
 
 namespace slang {
     namespace fs = std::filesystem;
     class ParseTree {
     public:
-        ~ParseTree() = default;
-        static std::shared_ptr<ParseTree> parse(const fs::path &path);
+        static std::shared_ptr<ParseTree> parse(const slang::Config &config,
+                                                std::shared_ptr<slang::Lexer> lexer);
+        virtual ~ParseTree() = default;
         void compile(const fs::path &path = "") const;
     protected:
-        ParseTree(const fs::path &path);
-        std::string mSource;
-        fs::path mSourcePath;
-        std::vector<std::string::size_type> mLineOffsets;
-        std::list<slang::GR> mExpressions;
+        Program mProgram;
+        std::shared_ptr<slang::Lexer> mLexer;
 
+        ParseTree(std::shared_ptr<slang::Lexer> lexer);
         void setupLineOffsetInfo();
     };
 }

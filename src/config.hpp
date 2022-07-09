@@ -16,10 +16,14 @@ namespace slang {
         inline const std::filesystem::path &getOutputPath() const {
             return mOutputPath;
         }
+        inline bool shouldDumpAst() const {
+            return mDumpAst;
+        }
 
     protected:
         std::vector<std::filesystem::path> mSourcePaths;
         std::filesystem::path mOutputPath;
+        bool mDumpAst;
     };
 }
 

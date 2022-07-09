@@ -11,7 +11,7 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/TargetSelect.h>
-#include <llvm/Support/TargetRegistry.h>
+#include <llvm/MC/TargetRegistry.h>
 
 
 // Static globals.
@@ -20,6 +20,20 @@ static llvm::LLVMContext context;
 static llvm::IRBuilder<> builder(context);
 static llvm::Module *module = nullptr;
 static llvm::Function *mainFunc = nullptr;
+
+static llvm::Value *generateEntryBlockAlloca(const slang::Identifier &id) {
+
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tmpBuilder(
+        &curFn->getEntryBlock(),
+        curFn->getEntryBlock().begin()
+        );
+    llvm::StringRef name(id.getId().data(), id.getId().size());
+    auto alloca = tmpBuilder.CreateAlloca(
+        llvm::Type::getFloatTy(context), nullptr, name
+        );
+    return alloca;
+}
 
 class BlockStack {
 protected:
@@ -111,13 +125,15 @@ void slang::ParseTree::compile(const slang::fs::path &path) const {
 
     mainFunc = llvm::Function::Create(mainFuncPrototype, llvm::GlobalValue::ExternalLinkage,
                                       "slang_main", module);
+    blockStack.init();
 
-    for(const auto &e : mExpressions) {
-        e->toLLVM();
-    }
+
+    mProgram.toLLVM();
 
     auto retBlock = llvm::BasicBlock::Create(context, "ret", mainFunc);
+    blockStack.push(retBlock);
     builder.CreateRet(integerConstant(0));
+    blockStack.pop();
     builder.CreateBr(retBlock);
 
     std::string realPath = path.u8string();
@@ -170,38 +186,19 @@ void slang::ParseTree::compile(const slang::fs::path &path) const {
     dest.flush();
 }
 
-// If.
-
-slang::LLV slang::If::toLLVM() const {
-    // Create the blocks that will house the if-else code.
-    auto condTrue = llvm::BasicBlock::Create(context, "cond_true", mainFunc);
-    auto condFalse = llvm::BasicBlock::Create(context, "cond_false", mainFunc);
-    auto merge = llvm::BasicBlock::Create(context, "ifcont", mainFunc);
-    // Make the branch condition in the entry block.
-    builder.CreateCondBr(mBoolExp->toLLVM(), condTrue, condFalse);
-
-    // TODO
-    blockStack.push(condTrue);
-    mStatements->toLLVM();
-    builder.CreateBr(merge);
-    blockStack.pop();
-
-
-    // Else.
-    if(mElse) {
-        blockStack.push(condFalse);
-        mElse->toLLVM();
-        builder.CreateBr(merge);
-        blockStack.pop();
-    }
-
-
-    blockStack.push(merge);
+slang::LLV slang::IntegerConstant::toLLVM() const {
     return nullptr;
 }
 
-// Block
+slang::LLV slang::VariableDeclaration::toLLVM() const {
+    return generateEntryBlockAlloca(mId);
+}
 
-slang::LLV slang::Block::toLLVM() const {
+slang::LLV slang::Program::toLLVM() const {
+    for(const auto &pd : mStatements) {
+        if(pd != nullptr) {
+            pd->toLLVM();
+        }
+    }
     return nullptr;
 }

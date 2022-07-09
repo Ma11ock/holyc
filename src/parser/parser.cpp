@@ -5,133 +5,212 @@
 
 #include <list>
 #include <variant>
-#include <regex>
 #include <string_view>
-#include <fstream>
+#include <vector>
 
 enum class ParserState {
     Error,
     Program,
-    Block,
-    UnlabelledBlock,
-    BlockHead,
     CompoundStatement,
-    UnlabelledCompound,
-    CompoundTail,
-
+    Selection, // If, else if, else.
+    Assign,
+    Expression,
     Accept,
+    Declaration,
 };
+
+// TODO need a buffer of previous tokens/expressions, just like NPDAs.
 
 using TT = slang::TokenType;
 using PS = ParserState;
-using ParseObject = std::variant<slang::Lexeme, slang::Exp>;
+using ParseObject = std::variant<slang::Lexeme, slang::GR>;
 using ParseStack = std::list<ParseObject>;
 namespace fs = slang::fs;
 
-static class ParseTreeImpl : public slang::ParseTree {
+class ParseTreeImpl : public slang::ParseTree {
 public:
-    ParseTreeImpl(const fs::path &path)
-        : slang::ParseTree(path),mParseStack({}),mLookAhead(),
-          mParserState(PS::Program),mSourcePtr("") {
+    ParseTreeImpl(std::shared_ptr<slang::Lexer> lexer, const slang::Config &config)
+        : slang::ParseTree(lexer),mParseStack({}),mLookAhead(),
+          mParserState(PS::Program),mConfig(config) {
     }
     virtual ~ParseTreeImpl() = default;
-    slang::GR getNextState();
+    void createParseTree();
 
 protected:
     ParseStack mParseStack;
     slang::Lexeme mLookAhead;
     ParserState mParserState;
-    std::string_view mSourcePtr;
+    const slang::Config &mConfig;
 
     // Private parsing functions.
+    slang::Lexeme popTopToken();
+
+    slang::programData step();
+    slang::exp parseExpression();
+    slang::programData parseProgram();
+    slang::varDecl reduceVarDecl();
+    slang::decl parseDeclaration();
     slang::Lexeme getNextLookahead();
-    slang::Exp parseBoolexpr();
-    slang::StatementList parseStatementList();
 };
 
 // ParseTree implementation.
 
-slang::ParseTree::ParseTree(const fs::path &path)
-    : mSource(""),mSourcePath(path),mLineOffsets({}),mExpressions({}) {
-    std::ifstream sourceFile(path);
-    if(sourceFile.bad() || sourceFile.fail()) {
-        throw std::invalid_argument("Not good :/");
-    }
-
-    std::stringstream buffer;
-    buffer << sourceFile.rdbuf();
-    mSource = buffer.str();
+slang::ParseTree::ParseTree(std::shared_ptr<slang::Lexer> lexer)
+    : mProgram(),mLexer(lexer) {
 }
 
-std::shared_ptr<slang::ParseTree> slang::ParseTree::parse(const fs::path &path) {
+std::shared_ptr<slang::ParseTree> slang::ParseTree::parse(const slang::Config &config,
+                                                          std::shared_ptr<slang::Lexer> lexer) {
     // Look ahead token.
-    auto result = std::make_shared<ParseTreeImpl>(path);
-    slang::GR obj = nullptr;
-    std::string_view sourcePtr = result->mSource;
-    while((obj = result->getNextState()) != nullptr) {
-        // if(parserState == PS::Error) {
-        //     throw std::runtime_error("TODO"); // TODO make a custom exception class for this.
-        // }
-        result->mExpressions.push_back(obj);
-    }
+    auto result = std::make_shared<ParseTreeImpl>(lexer, config);
+    result->createParseTree();
+
     return result;
-}
-
-void slang::ParseTree::setupLineOffsetInfo() {
-    const static std::regex newlineRegex("\\n");
-    using namespace std::literals;
-    using svmatch = std::match_results<std::string_view::const_iterator>;
-    svmatch sm;
-    std::string_view sourcePtr = mSource;
-    std::regex_search(sourcePtr.cbegin(), sourcePtr.cend(), sm, newlineRegex);
-
-    mLineOffsets.resize(sm.size());
-
-    for(std::size_t i = 0; i < sm.size(); i++) {
-        mLineOffsets[i] = sm.position(i);
-    }
 }
 
 // ParseTreeImpl implementation.
 
 slang::Lexeme ParseTreeImpl::getNextLookahead() {
-    auto lookahead = slang::Lexeme::pull(mSourcePtr);
-    auto lexemeLen = lookahead.getTextLength();
+    auto lookahead = mLexer->pull(mConfig);
 
     if(lookahead == TT::Error) {
         throw std::runtime_error("TODO pull"); // TODO make a custom exception class for this.
     }
 
-    mSourcePtr = std::string_view(mSourcePtr.begin() + lexemeLen,
-                                  mSourcePtr.size() - lexemeLen);
     mLookAhead = lookahead;
     return lookahead;
 }
 
+// slang::Exp ParseTreeImpl::reduceExpr(const slang::Config &config) {
+//     // Parse stack of objects we will push onto the stack at the end.
+//     ParseStack pushStack = {};
+//     // Number of objects to pop off the stack.
+//     ParseStack::size_type mNumPop = 0;
+//     for(auto it = mParseStack.begin(); it != mParseStack.end(); it++, mNumPop++) {
+//         if(std::holds_alternative<slang::Lexeme>(*it)) {
+//             const auto &curLexeme = std::get<0>(*it);
+//             switch(curLexeme.getTokenType()) {
+//             case TT::IntegerConstant:
+//                 pushStack.push_back(std::make_shared<slang::IntegerConstant>(curLexeme.getText()));
+//                 break;
+//             case TT::Equals:
+//                 mNumPop++;
+//                 // Make an assign with whatever is before the =.
+//                 auto frontExp = mParseStack.front();
+//                 mParseStack.pop_front();
+//                 //pushStack.push_front(std::make_shared<slang::Assign>(, frontExp));
+//                 goto end_loop;
+//                 break;
+//             default:
+//                 break;
+//             }
+//         } else { // Grammar type.
 
-slang::Exp ParseTreeImpl::parseBoolexpr() {
+//         }
+//     }
+
+// end_loop:
+//     mParseStack.erase(mParseStack.begin(), mParseStack.begin() + mNumPop);
+//     mParseStack.splice(mParseStack.begin(), pushStack);
+// }
+
+slang::exp ParseTreeImpl::parseExpression() {
+    return nullptr;
+}
+
+slang::varDecl ParseTreeImpl::reduceVarDecl() {
+    // Reduce from the last tokens.
+    auto id = popTopToken();
+    auto type = popTopToken();
+    return std::make_shared<slang::VariableDeclaration>(id);
+}
+
+slang::decl ParseTreeImpl::parseDeclaration() {
+    getNextLookahead();
+
     switch(mLookAhead.getTokenType()) {
-    case TT::IntegerConstant:
-        return std::make_shared<slang::IntegerConstant>(mLookAhead.getText());
+    case TT::Identifier:
+        mParseStack.push_front(mLookAhead);
+        break;
+    case TT::Semicolon:
+        // Reduce VariableDeclaration.
+        return reduceVarDecl();
         break;
     default:
+        throw std::runtime_error("Decl");
         break;
     }
-    throw std::runtime_error("TODO boolexpr");
+
+    return nullptr;
 }
 
-slang::StatementList ParseTreeImpl::parseStatementList() {
-    return {};
-}
 
-slang::GR ParseTreeImpl::getNextState() {
+slang::programData ParseTreeImpl::parseProgram() {
+    getNextLookahead();
+
     switch(mLookAhead.getTokenType()) {
-    case TT::If:
-        return std::make_shared<slang::If>(parseBoolexpr(),
-                                           parseStatementList());
+    case TT::U64i:
+    case TT::U32i:
+    case TT::U16i:
+    case TT::U8i:
+    case TT::U0i:
+    case TT::I64i:
+    case TT::I32i:
+    case TT::I16i:
+    case TT::I8i:
+    case TT::I0i:
+        mParseStack.push_front(mLookAhead);
+        mParserState = PS::Declaration;
+        break;
+    case TT::Identifier:
+        mParseStack.push_front(mLookAhead);
+        mParserState = PS::Program;
+        break;
+    case TT::Eof:
+        mParserState = PS::Accept;
         break;
     default:
         break;
     }
     return nullptr;
+}
+
+slang::programData ParseTreeImpl::step() {
+    switch(mParserState) {
+    case PS::Program:
+        return parseProgram();
+        break;
+    case PS::CompoundStatement:
+        break;
+    case PS::Declaration:
+        return parseDeclaration();
+        break;
+    default:
+        throw std::runtime_error("step");
+        break;
+    }
+
+    return nullptr;
+}
+
+void ParseTreeImpl::createParseTree() {
+    for(slang::programData pd = step(); mParserState != PS::Accept; pd = step()) {
+        if(pd != nullptr) {
+            mProgram.add(pd);
+        }
+    }
+
+    if(mConfig.shouldDumpAst()) {
+        // TODO
+    }
+}
+
+slang::Lexeme ParseTreeImpl::popTopToken() {
+    auto grammarObj = mParseStack.front();
+    mParseStack.pop_front();
+
+    if(grammarObj.index() == 0) {
+        return std::get<slang::Lexeme>(grammarObj);
+    }
+    throw std::runtime_error("poptoptoken");
 }

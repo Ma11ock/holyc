@@ -25,7 +25,7 @@ static std::string_view getNextArg<std::string_view>(const argsType &args,
 }
 
 slang::Config::Config(const argsType &args)
-    : mSourcePaths({}),mOutputPath("a.out") {
+    : mSourcePaths({}),mOutputPath("a.out"),mDumpAst(false) {
     if(args.empty()) {
         throw std::invalid_argument("no input files");
     }
@@ -35,6 +35,8 @@ slang::Config::Config(const argsType &args)
 
         if(arg == "-o") { // Output file.
             mOutputPath = getNextArg<std::string_view>(args, i);
+        } else if(arg == "-ast-dump") {
+            mDumpAst = true;
         } else { // No flag.
             mSourcePaths.push_back(arg);
         }

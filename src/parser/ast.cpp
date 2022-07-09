@@ -3,31 +3,42 @@
 #include <fmt/core.h>
 #include <regex>
 
+using TT = slang::TokenType;
+
+// GrammarRule.
+
+std::string slang::GrammarRule::stringify() const {
+    return fmt::format("{} 0x{} <line:{}:{},col:{}:{}>", getClassName(),
+                       reinterpret_cast<std::size_t>(this), mLexeme.getStartLineNumber(),
+                       mLexeme.getEndLineNumber(), mLexeme.getStartColNumber(),
+                       mLexeme.getEndColNumber());
+}
+
 // Unary Operator.
 
-std::string slang::UnaryOperator::stringify() const {
-    return fmt::format("Exp: {}", mExp);
-}
+// std::string slang::UnaryOperator::stringify() const {
+//     return fmt::format("Exp: {}", mExp);
+// }
 
-// Negate.
+// // Negate.
 
-slang::LLV slang::Negate::toLLVM() const {
-    return nullptr;
-}
+// slang::LLV slang::Negate::toLLVM() const {
+//     return nullptr;
+// }
 
-std::string slang::Negate::stringify() const {
-    return fmt::format("Negate: {}", slang::UnaryOperator::stringify());
-}
+// std::string slang::Negate::stringify() const {
+//     return fmt::format("Negate: {}", slang::UnaryOperator::stringify());
+// }
 
-// Unaryplus.
+// // Unaryplus.
 
-slang::LLV slang::UnaryPlus::toLLVM() const {
-    return nullptr;
-}
+// slang::LLV slang::UnaryPlus::toLLVM() const {
+//     return nullptr;
+// }
 
-std::string slang::UnaryPlus::stringify() const {
-    return fmt::format("UnaryPlus: {}", slang::UnaryOperator::stringify());
-}
+// std::string slang::UnaryPlus::stringify() const {
+//     return fmt::format("UnaryPlus: {}", slang::UnaryOperator::stringify());
+// }
 
 
 // // Real.
@@ -126,12 +137,6 @@ std::string slang::UnaryPlus::stringify() const {
 // std::string slang::Text::stringify() const {
 //     return fmt::format("Text: {}", mText);
 // }
-
-// Identifier.
-
-std::string slang::Identifier::stringify() const {
-    return fmt::format("Identifier: {}", mId);
-}
 
 // slang::BinaryOperator::BinaryOperator(slang::Exp left, slang::Exp right)
 //     : mLeft(left),mRight(right) {
@@ -333,92 +338,150 @@ std::string slang::Identifier::stringify() const {
 
 // Block.
 
-std::string slang::Block::stringify() const {
-    if(isEmpty()) {
-        return fmt::format("Block: \\{Empty\\}");
-    }
+// std::string slang::Block::stringify() const {
+//     if(isEmpty()) {
+//         return fmt::format("Block: \\{Empty\\}");
+//     }
 
-    std::string s = "";
-    for(const auto &stmnt : mStatements) {
-        s += fmt::format("\t{}\n", stmnt);
-    }
-    return fmt::format("Block: {}", s);
-}
+//     std::string s = "";
+//     for(const auto &stmnt : mStatements) {
+//         s += fmt::format("\t{}\n", stmnt);
+//     }
+//     return fmt::format("Block: {}", s);
+// }
 
-// // While.
+// // // While.
 
-// slang::LLV slang::While::toLLVM() const {
+// // slang::LLV slang::While::toLLVM() const {
+// //     return nullptr;
+// // }
+
+// // std::string slang::While::stringify() const {
+// //     return fmt::format("While: Boolexpr: {}, Body: \t{}", mBoolExp, mStatements);
+// // }
+
+// // If.
+
+// std::string slang::If::stringify() const {
+//     std::string elifs = "";
+//     for(const auto &elif : mElifBlocks) {
+//         elifs += fmt::format("\t{}\n", elif);
+//     }
+//     return fmt::format("If: Boolexpr: {}, Body: \t{}, else ifs: {}, else: {}",
+//                        mBoolExp, mStatements, elifs, mElse);
+// }
+
+// // IntegerConstant.
+
+// slang::LLV slang::IntegerConstant::toLLVM() const {
 //     return nullptr;
 // }
 
-// std::string slang::While::stringify() const {
-//     return fmt::format("While: Boolexpr: {}, Body: \t{}", mBoolExp, mStatements);
+// std::string slang::IntegerConstant::stringify() const {
+//     return fmt::format("IntegerConstant: {}", mValue);
 // }
 
-// If.
+// slang::IntegerConstant::IntegerConstant(std::string_view value) : mValue(0) {
+//     auto [ptr, ec] = std::from_chars(value.begin(), value.end(), mValue);
 
-std::string slang::If::stringify() const {
-    std::string elifs = "";
-    for(const auto &elif : mElifBlocks) {
-        elifs += fmt::format("\t{}\n", elif);
-    }
-    return fmt::format("If: Boolexpr: {}, Body: \t{}, else ifs: {}, else: {}",
-                       mBoolExp, mStatements, elifs, mElse);
-}
+//     if(ptr != value.end()) {
+//         throw std::invalid_argument(fmt::format("{} is not a valid int64",
+//                                                 value));
+//     }
 
-// IntegerConstant.
+//     switch(ec) {
+//     case std::errc::invalid_argument:
+//         throw std::invalid_argument(fmt::format("{} is not a valid int64",
+//                                                 value));
+//         break;
+//     case std::errc::result_out_of_range:
+//         throw std::range_error(fmt::format("{} is out of range of 64 bit integer",
+//                                            value));
+//         break;
+//     default:
+//         break;
+//     }
+// }
 
-slang::LLV slang::IntegerConstant::toLLVM() const {
-    return nullptr;
-}
+// // // Variable.
+
+// // slang::LLV slang::Variable::toLLVM() const {
+// //     return nullptr;
+// // }
+
+// // std::string slang::Variable::stringify() const {
+// //     return fmt::format("Variable: ID: {}, Type: {}", mId, mConstant);
+// // }
+
+// // // Procedure.
+
+// // slang::LLV slang::Procedure::toLLVM() const {
+// //     return nullptr;
+// // }
+
+// // std::string slang::Procedure::stringify() const {
+// //     std::string args = "";
+// //     for(const auto &a : mArgs) {
+// //         args += fmt::format("{}, ", a);
+// //     }
+// //     return fmt::format("Procedure: ID: {}, Arguments: {}Return: {}",
+// //                        mId, args, mReturn);
+// // }
+
+
+// New code.
+
 
 std::string slang::IntegerConstant::stringify() const {
-    return fmt::format("IntegerConstant: {}", mValue);
+    if(mIsSigned) {
+        return fmt::format("{} 'U64' {}", slang::GrammarRule::stringify(),
+                           static_cast<std::int64_t>(mValue));
+    }
+    return fmt::format("{} 'U64' {}", slang::GrammarRule::stringify(), mValue);
 }
 
-slang::IntegerConstant::IntegerConstant(std::string_view value) : mValue(0) {
-    auto [ptr, ec] = std::from_chars(value.begin(), value.end(), mValue);
-
-    if(ptr != value.end()) {
-        throw std::invalid_argument(fmt::format("{} is not a valid int64",
-                                                value));
-    }
-
-    switch(ec) {
-    case std::errc::invalid_argument:
-        throw std::invalid_argument(fmt::format("{} is not a valid int64",
-                                                value));
-        break;
-    case std::errc::result_out_of_range:
-        throw std::range_error(fmt::format("{} is out of range of 64 bit integer",
-                                           value));
-        break;
-    default:
-        break;
-    }
+std::string_view slang::IntegerConstant::getClassName() const {
+    return "IntegerConstant";
 }
 
-// // Variable.
+// Variable declaration
 
-// slang::LLV slang::Variable::toLLVM() const {
-//     return nullptr;
-// }
+std::string slang::VariableDeclaration::stringify() const {
+    return fmt::format("{} Var:{} Type:{}", slang::GrammarRule::stringify(),
+                       mId, "U64");
+}
 
-// std::string slang::Variable::stringify() const {
-//     return fmt::format("Variable: ID: {}, Type: {}", mId, mConstant);
-// }
+std::string_view slang::VariableDeclaration::getClassName() const {
+    return "VariableDeclaration";
+}
 
-// // Procedure.
 
-// slang::LLV slang::Procedure::toLLVM() const {
-//     return nullptr;
-// }
+// Program.
 
-// std::string slang::Procedure::stringify() const {
-//     std::string args = "";
-//     for(const auto &a : mArgs) {
-//         args += fmt::format("{}, ", a);
-//     }
-//     return fmt::format("Procedure: ID: {}, Arguments: {}Return: {}",
-//                        mId, args, mReturn);
-// }
+void slang::Program::add(slang::programData pd) {
+    mStatements.push_back(pd);
+}
+
+std::string slang::Program::stringify() const {
+    return fmt::format("{}", slang::GrammarRule::stringify());
+}
+
+std::string_view slang::Program::getClassName() const {
+    return "Program";
+}
+
+
+// CompoundStatement.
+
+
+void slang::CompoundStatement::add(slang::stmnt statement) {
+    mStatementList.push_back(statement);
+}
+
+std::string slang::CompoundStatement::stringify() const {
+    return fmt::format("{}", slang::GrammarRule::stringify());
+}
+
+std::string_view slang::CompoundStatement::getClassName() const {
+    return "CompoundStatement";
+}

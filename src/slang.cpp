@@ -2,7 +2,6 @@
 #define SIMUL_HPP
 
 namespace simul {
-    
 }
 
 #endif /* SIMUL_HPP */

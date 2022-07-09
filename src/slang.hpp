@@ -32,8 +32,10 @@ namespace slang {
         Try,
         Catch,
         Throw,
+        Lastclass,
         Static,
         // Intrinsic types.
+        I0i,
         I8i,
         I16i,
         I32i,

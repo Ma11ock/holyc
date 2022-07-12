@@ -2,9 +2,12 @@
 ; (like the BNF in https://www.cs.unc.edu/~plaisted/comp455/Algol60.pdf).
 ; Derived from the C BNF from https://cs.wmich.edu/~gupta/teaching/cs4850/sumII06/The%20syntax%20of%20C%20in%20Backus-Naur%20form.htm
 ; and Section A13 of The C programming language, 2nd edition, by Brian W. Kernighan and Dennis M. Ritchie,Prentice Hall, 1988.
+; The structure here provides the class structure for parser/ast.hpp.
 
-<program> ::= <external-declaration>
-          | <program> <external-declaration>
+<program> ::= <program> <external-declaration>
+          | <program> <compound-statement>
+          | <external-declaration>
+          | <compound-statement>
 
 <external-declaration> ::= <function-definition>
                        |  <declaration>
@@ -65,10 +68,10 @@
 <init-declarator> ::= <declarator>
                   | <declarator> = <initializer>
 
-<class-declaration> ::= <specifier-qualifer-list> <class-declaration-list> ;
+<class-declaration> ::= <specifier-qualifier-list> <class-declaration-list> ;
 
-<specifier-qualifer-list> ::= <specifier-qualifer-list> <type-specifier>
-                          | <specifier-qualifer-list> <type-qualifier>
+<specifier-qualifier-list> ::= <specifier-qualifier-list> <type-specifier>
+                          | <specifier-qualifier-list> <type-qualifier>
                           | <type-specifier>
                           | <type-qualifier>
 
@@ -127,8 +130,8 @@
 <initializer-list> ::= <initializer-list> , <initializer>
                    | <initializer>
 
-<type-name> ::= <specifier-qualifer-list> <abstract-declarator>
-            | <specifier-qualifer-list>
+<type-name> ::= <specifier-qualifier-list> <abstract-declarator>
+            | <specifier-qualifier-list>
 
 <abstract-declarator> ::= <pointer>
                       | <pointer> <direct-abstract-declarator>
@@ -147,7 +150,7 @@
 
 <statement> ::= <labelled-statement>
             | <expression-statement>
-            | <compound-statement>
+            | <c-compound-statement>
             | <selection-statement>
             | <iteration-statement>
             | <jump-statement>
@@ -159,10 +162,12 @@
 <expression-statement> ::= <expression> ;
                        | ;
 
-<compound-statement> ::= { <declaration-list> <statement-list> }
-                     | { <statement-list> }
-                     | { <declaration-list> }
-                     | { }
+<c-compound-statement> ::= { <compound-statement> }
+                       | { }
+
+<compound-statement> ::=  <declaration-list> <statement-list>
+                     |  <statement-list>
+                     |  <declaration-list>
 
 <statement-list> ::= <statement-list> <statement>
                  | <statement>
@@ -281,7 +286,7 @@
 
 <primary-expression> ::= <identifier>
                      | <constant>
-                     | <string>
+                     | <string-constant>
                      | ( <expression> )
 
 <argument-expression-list> ::= <assignment-expression-list> , <assignment-expression>

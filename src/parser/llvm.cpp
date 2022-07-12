@@ -202,3 +202,11 @@ slang::LLV slang::Program::toLLVM() const {
     }
     return nullptr;
 }
+
+slang::LLV slang::BinaryOperator::toLLVM() const {
+    return nullptr;
+}
+
+slang::LLV slang::DeclarationStatement::toLLVM() const {
+    return nullptr;
+}

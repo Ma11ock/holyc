@@ -14,7 +14,8 @@ int main(int argc, const char * const * argv) {
         slang::Config programConfig(std::vector<std::string_view>(argv + 1, argv + argc));
         for(const auto &sourcePath : programConfig.getSourcePaths()) {
             auto parser = slang::ParseTree::parse(programConfig,
-                                                  std::make_shared<slang::Lexer>(sourcePath));
+                                                  std::make_shared<slang::Lexer>(sourcePath,
+                                                                                 programConfig));
             parser->compile(programConfig.getOutputPath());
         }
     } catch (std::exception &e) {

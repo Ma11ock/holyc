@@ -22,6 +22,71 @@ namespace llvm {
 namespace slang {
     using LLV = llvm::Value*;
 
+    enum class Operator {
+        /// ! (unary).
+        LogicalNot,
+        /// - (unary).
+        Negative,
+        /// + (unary).
+        Postivie,
+        /// * (unary).
+        Dereference,
+        /// & (unary).
+        AddressOf,
+        /// ~ (unary).
+        BitwiseNot,
+        /// ++ (unary / prefix).
+        PrefixPlusPlus,
+        /// ++ (unary / postfix).
+        PostfixPlusPlus,
+        /// -- (unary / prefix).
+        PrefixMinusMinus,
+        /// -- (unary / postfix).
+        PostfixMinusMinus,
+
+        /// && (binary).
+        LogicalAnd,
+        /// || (binary).
+        LogicalOr,
+        /// < (binary).
+        LessThan,
+        /// <= (binary).
+        LessThanEqual,
+        /// > (binary).
+        GreaterThan,
+        /// >= (binary).
+        GreaterThanEqual,
+        /// == (binary).
+        Equals,
+        /// != (binary).
+        NotEquals,
+        /// Add (binary).
+        Add,
+        /// Minus (binary).
+        Minus,
+        /// Multiply (binary).
+        Multiply,
+        /// Divide (binary).
+        Divide,
+        /// % (binary).
+        Modulo,
+        /// << (binary).
+        Lshift,
+        /// >> (binary).
+        Rshift,
+        /// & (binary).
+        BitwiseAnd,
+        /// | (binary).
+        BitwiseOr,
+        //// ^ (binary).
+        BitwiseXor,
+
+        /// Lparen (control).
+        Lparen,
+        /// Rparen (control).
+        Rparen,
+    };
+
     class GrammarRule {
     public:
         GrammarRule(const slang::Lexeme &lexeme) : mLexeme(lexeme) {}
@@ -45,6 +110,20 @@ namespace slang {
 
     using exp = std::shared_ptr<Expression>;
 
+    class BinaryOperator : public Expression {
+    public:
+        BinaryOperator(Operator op, exp lhs, exp rhs)
+            : mOp(op),mLhs(lhs),mRhs(rhs) {}
+        virtual ~BinaryOperator() = default;
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+        virtual std::string_view getClassName() const;
+    private:
+        Operator mOp;
+        exp mLhs;
+        exp mRhs;
+    };
+
     class Statement : public Expression {
     public:
     protected:
@@ -52,6 +131,21 @@ namespace slang {
 
     using stmnt = std::shared_ptr<Statement>;
     using statementList = std::list<stmnt>;
+
+    class Assign : public Statement {
+    public:
+        Assign(const Identifier &id, exp expr) : mLhs(id),mRhs(expr) {}
+        virtual ~Assign() = default;
+
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+        virtual std::string_view getClassName() const;
+
+    protected:
+        Identifier mLhs;
+        exp mRhs;
+    };
+
     class Constant : public Statement {
     public:
         Constant() = default;
@@ -86,6 +180,8 @@ namespace slang {
         statementList mStatementList;
     };
 
+    using cmpdStmnt = std::shared_ptr<CompoundStatement>;
+
     class FunctionDefinition : public GrammarRule {
     public:
         FunctionDefinition() = default;
@@ -112,13 +208,38 @@ namespace slang {
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
     protected:
-        /// LHS.
         Identifier mId;
         // TODO type.
     };
 
     using varDecl = std::shared_ptr<VariableDeclaration>;
 
+    class VariableInitialization : public VariableDeclaration {
+    public:
+        VariableInitialization(const Identifier &id, exp expr) : mLhs(id),mRhs(expr) {}
+        virtual ~VariableInitialization() = default;
+        virtual std::string_view getClassName() const;
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+    protected:
+        /// RHS.
+        exp mRhs;
+    };
+
+    using varInit = std::shared_ptr<VariableInitialization>;
+
+    class DeclarationStatement : public Statement {
+    public:
+        DeclarationStatement() = default;
+        virtual ~DeclarationStatement() = default;
+
+        void push(varDecl decl);
+        virtual std::string_view getClassName() const;
+        virtual LLV toLLVM() const;
+        virtual std::string stringify() const;
+    protected:
+        std::list<varDecl> mDecls;
+    };
 
     using programData = std::shared_ptr<GrammarRule>;
 
@@ -133,6 +254,10 @@ namespace slang {
     protected:
         std::list<programData> mStatements;
     };
+
+    // Function declarations.
+    std::string_view operatorToLexeme(Operator op);
+    std::string_view stringifyOperator(Operator op);
 }
 
 #endif /* SLANG_AST_HPP */

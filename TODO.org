@@ -1,0 +1,16 @@
+* Parser
+- [ ] Implicit code (for implicit casts)
+- [ ] Dumpstruct, class metadata
+
+  Make it like a LISP expr.
+  #+begin_src 
+  (+ 1 2) => Plus { IntegerConst(1), IntegerConst{2} }
+  (= lol 69) => Assign { Identifier(lol), IntegerConst{69} }
+  (+ 1 (+ 2 3)) => Plus { IntegerConst(1), Plus { IntegerConst(1), IntegerConst(2) } }
+  You know what is the terminating token from the parser state.
+  For addition, it is the second (first the right) object that is not +.
+  lol = 1 + 2; => Assign { Plus { I(1), I(2) } }
+
+  #+end_src
+
+  Lvalues and Rvalues

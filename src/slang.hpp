@@ -72,6 +72,17 @@ namespace slang {
         BitshiftRight,
         QuestionMark,
         Sizeof,
+        PlusEqual,
+        MinusEqual,
+        TimesEqual,
+        DividedByEqual,
+        LeftshiftEqual,
+        RightshiftEqual,
+        ModuloEqual,
+        OrEqual,
+        AndEqual,
+        PlusPlus,
+        MinusMinus,
         // Grammar symbols.
         Semicolon,
         Colon,
@@ -96,5 +107,6 @@ namespace slang {
         OctalConstant,
         Space,
     }; // Token Type.
+    // id += 3; -> id = id + 3;
 }  // slang
 #endif /* SLANG_HPP */

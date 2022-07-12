@@ -335,7 +335,8 @@ std::string slang::Lexeme::stringify() const {
 // Lexer implementation.
 
 slang::Lexer::Lexer(const fs::path &path) : mSource(""),mSourcePath(path),
-                                            mLineOffsets({}),mCurLineNoPtr(0),mCurPos(0) {
+                                            mLineOffsets({}),mCurLineNoPtr(0),mCurPos(0),
+                                            mTokenQueue({}) {
     std::ifstream sourceFile(path);
     if(sourceFile.bad() || sourceFile.fail()) {
         throw std::invalid_argument("TODO");
@@ -431,6 +432,15 @@ slang::Lexeme slang::Lexer::pull(const slang::Config &config) {
         Token("^\\!", TT::LogicalNot),
         Token("^\\>\\>", TT::BitshiftRight),
         Token("^\\<\\<", TT::BitshiftLeft),
+        Token("^\\+\\=", TT::PlusEqual),
+        Token("^\\*\\=", TT::TimesEqual),
+        Token("^\\-\\=", TT::MinusEqual),
+        Token("^\\/\\=", TT::DividedByEqual),
+        Token("^\\%\\=", TT::ModuloEqual),
+        Token("^\\<\\<\\=", TT::LeftshiftEqual),
+        Token("^\\>\\>\\=", TT::RightshiftEqual),
+        Token("^\\|\\=", TT::OrEqual),
+        Token("^\\&\\=", TT::AndEqual),
         // Constants.
         Token("^'.'", TT::CharacterConstant),
         Token("^\".*\"", TT::StringConstant),
@@ -438,6 +448,7 @@ slang::Lexeme slang::Lexer::pull(const slang::Config &config) {
         Token("^[-.0-9]+", TT::FloatConstant),
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
         Token("^[_a-zA-Z][_\\w]*:", TT::Label),
+        // Special tokens used internally by the lexer.
         Token("^0x[-0-9A-Fa-f]+", TT::HexadecimalConstant),
         Token("^0[-0-7]+", TT::OctalConstant),
     };
@@ -488,7 +499,32 @@ slang::Lexeme slang::Lexer::pull(const slang::Config &config) {
 
     if(maxLexeme == TT::Space)
         return pull(config);
-    return maxLexeme;
+    return handleInternalTokenType(maxLexeme);
+}
+
+std::size_t slang::Lexer::getQLen() const {
+    std::size_t result = 0;
+    for(const auto &l : mTokenQueue) {
+        if(l != TT::Space) {
+            result++;
+        }
+    }
+
+    return result;
+}
+
+slang::Lexeme slang::Lexer::popQ() {
+    auto result = mTokenQueue[getQLen()];
+    mTokenQueue[getQLen()] = slang::Lexeme();
+    return result;
+}
+
+slang::Lexeme slang::Lexer::peekQ() const {
+    return mTokenQueue[getQLen()];
+}
+
+slang::Lexeme slang::Lexer::handleInternalTokenType(slang::Lexeme l) {
+    return l;
 }
 
 // Identifier implementation.

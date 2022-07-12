@@ -4,6 +4,7 @@
 #include <regex>
 
 using TT = slang::TokenType;
+using O = slang::Operator;
 
 // GrammarRule.
 
@@ -484,4 +485,38 @@ std::string slang::CompoundStatement::stringify() const {
 
 std::string_view slang::CompoundStatement::getClassName() const {
     return "CompoundStatement";
+}
+
+// BinaryOperator.
+
+std::string slang::BinaryOperator::stringify() const {
+    return fmt::format("{}: {}", slang::GrammarRule::stringify(),
+                       slang::operatorToLexeme(mOp));
+}
+
+std::string_view slang::BinaryOperator::getClassName() const {
+    return "BinaryOperator";
+}
+
+// DeclarationStatement
+
+
+std::string slang::DeclarationStatement::stringify() const {
+    return std::string(getClassName());
+}
+
+std::string_view slang::DeclarationStatement::getClassName() const {
+    return "DeclarationStatement";
+}
+
+// Functions.
+
+std::string_view slang::operatorToLexeme(Operator op) {
+    switch(op) {
+    case O::Add:
+        return "+";
+    default:
+        break;
+    }
+    return "";
 }

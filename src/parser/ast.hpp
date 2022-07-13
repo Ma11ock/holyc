@@ -87,6 +87,122 @@ namespace slang {
         Rparen,
     };
 
+    enum class HCType {
+        U0i,
+        U8i,
+        U16i,
+        U32i,
+        U64i,
+        I0i,
+        I8i,
+        I16i,
+        I32i,
+        I64i,
+        // Need identifiers.
+        Class,
+        Enum,
+        Union,
+    };
+
+    struct typeInfo {
+        Identifier id;
+        HCType type;
+    };
+
+    struct StorageClass {
+        inline static const std::uint32_t Default = 0;
+        inline static const std::uint32_t Reg = 1;
+        inline static const std::uint32_t Noreg = 2;
+        inline static const std::uint32_t Public = 4;
+        inline static const std::uint32_t Static = 8;
+        inline static const std::uint32_t Extern = 16;
+        inline static const std::uint32_t _Extern = 32;
+
+        std::uint32_t mValue;
+
+        StorageClass() : mValue(0) {}
+        StorageClass(std::uint32_t v) : mValue(v) {}
+        StorageClass(const StorageClass &sc) : mValue(sc.mValue) {}
+
+        inline StorageClass operator|(std::uint32_t v) const {
+            return mValue | v;
+        }
+        inline StorageClass operator|(StorageClass sc) const {
+            return *this | sc.mValue;
+        }
+        inline StorageClass operator|=(std::uint32_t v) {
+            return mValue |= v;
+        }
+        inline StorageClass operator|=(StorageClass sc) {
+            return *this |= sc.mValue;
+        }
+
+        inline StorageClass operator&(std::uint32_t v) const {
+            return mValue & v;
+        }
+        inline StorageClass operator&(StorageClass sc) const {
+            return mValue & sc.mValue;
+        }
+        inline StorageClass operator&=(std::uint32_t v) {
+            return mValue &= v;
+        }
+        inline StorageClass operator&=(StorageClass sc) {
+            return mValue &= sc.mValue;
+        }
+
+        inline StorageClass operator^(std::uint32_t v) const {
+            return mValue ^ v;
+        }
+        inline StorageClass operator^(StorageClass sc) const {
+            return mValue ^ sc.mValue;
+        }
+        inline StorageClass operator^=(std::uint32_t v) {
+            return mValue ^= v;
+        }
+        inline StorageClass operator^=(StorageClass sc) {
+            return mValue ^= sc.mValue;
+        }
+
+        inline StorageClass operator~() const {
+            return ~mValue;
+        }
+
+        inline StorageClass operator=(StorageClass sc) {
+            mValue = sc.mValue;
+            return *this;
+        }
+        inline StorageClass operator=(std::uint32_t v) {
+            mValue = v;
+            return *this;
+        }
+
+        inline bool operator==(StorageClass sc) const {
+            return mValue == sc.mValue;
+        }
+        inline bool operator!=(StorageClass sc) const {
+            return mValue != sc.mValue;
+        }
+
+        inline bool isReg() const {
+            return (mValue & Reg) != 0;
+        }
+        inline bool isNoreg() const {
+            return (mValue & Noreg) != 0;
+        }
+        inline bool isPublic() const {
+            return (mValue & Public) != 0;
+        }
+        inline bool isStatic() const {
+            return (mValue & Static) != 0;
+        }
+        inline bool isExtern() const {
+            return (mValue & Extern) != 0;
+        }
+        inline bool is_Extern() const {
+            return (mValue & _Extern) != 0;
+        }
+    };
+
     class GrammarRule {
     public:
         GrammarRule(const slang::Lexeme &lexeme) : mLexeme(lexeme) {}
@@ -216,7 +332,8 @@ namespace slang {
 
     class VariableInitialization : public VariableDeclaration {
     public:
-        VariableInitialization(const Identifier &id, exp expr) : mLhs(id),mRhs(expr) {}
+        VariableInitialization(const Identifier &id, exp expr)
+            : VariableDeclaration(id),mRhs(expr) {}
         virtual ~VariableInitialization() = default;
         virtual std::string_view getClassName() const;
         virtual LLV toLLVM() const;

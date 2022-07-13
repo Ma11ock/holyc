@@ -107,15 +107,16 @@ namespace slang {
 
     class Lexer {
     public:
-        Lexer(const fs::path &path);
+        Lexer(const fs::path &path, const Config &config);
         virtual ~Lexer() = default;
-        virtual Lexeme pull(const slang::Config &config);
+        virtual Lexeme pull();
     protected:
         std::string mSource;
         fs::path mSourcePath;
         std::vector<fileposType> mLineOffsets;
         std::vector<fileposType>::size_type mCurLineNoPtr;
         fileposType mCurPos;
+        const Config &mConfig;
     };
 
     class Identifier {

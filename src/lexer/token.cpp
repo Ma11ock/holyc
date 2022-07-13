@@ -334,9 +334,9 @@ std::string slang::Lexeme::stringify() const {
 
 // Lexer implementation.
 
-slang::Lexer::Lexer(const fs::path &path) : mSource(""),mSourcePath(path),
-                                            mLineOffsets({}),mCurLineNoPtr(0),mCurPos(0),
-                                            mTokenQueue({}) {
+slang::Lexer::Lexer(const fs::path &path, const slang::Config &config)
+    : mSource(""),mSourcePath(path),mLineOffsets({}),mCurLineNoPtr(0),mCurPos(0),
+      mConfig(config) {
     std::ifstream sourceFile(path);
     if(sourceFile.bad() || sourceFile.fail()) {
         throw std::invalid_argument("TODO");
@@ -364,7 +364,7 @@ slang::Lexer::Lexer(const fs::path &path) : mSource(""),mSourcePath(path),
     mLineOffsets.back() = std::numeric_limits<fileposType>::max();
 }
 
-slang::Lexeme slang::Lexer::pull(const slang::Config &config) {
+slang::Lexeme slang::Lexer::pull() {
     const static std::array TOKENS = {
         // EOF
         Token("^$", TT::Eof),
@@ -498,33 +498,8 @@ slang::Lexeme slang::Lexer::pull(const slang::Config &config) {
     mCurPos += lexemeLen;
 
     if(maxLexeme == TT::Space)
-        return pull(config);
-    return handleInternalTokenType(maxLexeme);
-}
-
-std::size_t slang::Lexer::getQLen() const {
-    std::size_t result = 0;
-    for(const auto &l : mTokenQueue) {
-        if(l != TT::Space) {
-            result++;
-        }
-    }
-
-    return result;
-}
-
-slang::Lexeme slang::Lexer::popQ() {
-    auto result = mTokenQueue[getQLen()];
-    mTokenQueue[getQLen()] = slang::Lexeme();
-    return result;
-}
-
-slang::Lexeme slang::Lexer::peekQ() const {
-    return mTokenQueue[getQLen()];
-}
-
-slang::Lexeme slang::Lexer::handleInternalTokenType(slang::Lexeme l) {
-    return l;
+        return pull();
+    return maxLexeme;
 }
 
 // Identifier implementation.

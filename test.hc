@@ -1,1 +1,1 @@
-U64 result = 69;
+U64i result = 69;

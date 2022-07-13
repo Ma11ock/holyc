@@ -194,6 +194,13 @@ slang::LLV slang::VariableDeclaration::toLLVM() const {
     return generateEntryBlockAlloca(mId);
 }
 
+slang::LLV slang::VariableInitialization::toLLVM() const {
+    auto alloca = slang::VariableDeclaration::toLLVM();
+
+    // TODo
+    return alloca;
+}
+
 slang::LLV slang::Program::toLLVM() const {
     for(const auto &pd : mStatements) {
         if(pd != nullptr) {

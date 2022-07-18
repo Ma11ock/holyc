@@ -10,20 +10,20 @@
 #include "../lexer/token.hpp"
 #include "../config.hpp"
 
-namespace slang {
+namespace hclang {
     namespace fs = std::filesystem;
     class ParseTree {
     public:
-        static std::shared_ptr<ParseTree> parse(const slang::Config &config,
-                                                std::shared_ptr<slang::Lexer> lexer);
+        static std::shared_ptr<ParseTree> parse(const hclang::Config &config,
+                                                std::shared_ptr<hclang::Lexer> lexer);
         virtual ~ParseTree() = default;
         void compile(const fs::path &path = "") const;
     protected:
         Program mProgram;
-        std::shared_ptr<slang::Lexer> mLexer;
-        const slang::Config &mConfig;
+        std::shared_ptr<hclang::Lexer> mLexer;
+        const hclang::Config &mConfig;
 
-        ParseTree(std::shared_ptr<slang::Lexer> lexer, const Config &config);
+        ParseTree(std::shared_ptr<hclang::Lexer> lexer, const Config &config);
         void setupLineOffsetInfo();
     };
 }

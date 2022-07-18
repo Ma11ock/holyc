@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace slang {
+namespace hclang {
     const inline std::string VERSION = "0.1";
     const inline std::string NAME = "hclang";
     enum class TokenType {
@@ -111,5 +111,5 @@ namespace slang {
         Space,
     }; // Token Type.
     // id += 3; -> id = id + 3;
-}  // slang
+}  // hclang
 #endif /* SLANG_HPP */

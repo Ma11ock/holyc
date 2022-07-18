@@ -11,7 +11,7 @@
 #include <limits>
 #include "../util.hpp"
 
-using TT = slang::TokenType;
+using TT = hclang::TokenType;
 using namespace std::string_view_literals;
 
 namespace fs = std::filesystem;
@@ -19,9 +19,9 @@ namespace fs = std::filesystem;
 class Token {
 protected:
     std::regex mRegex;
-    slang::TokenType mType;
+    hclang::TokenType mType;
 public:
-    Token(const std::string &regex, slang::TokenType type) :
+    Token(const std::string &regex, hclang::TokenType type) :
         mRegex(regex,
                std::regex_constants::icase | std::regex_constants::ECMAScript),
         mType(type) {
@@ -46,28 +46,28 @@ public:
                                                 static_cast<std::size_t>(last - first)));
     }
 
-    slang::TokenType getTokenType() const {
+    hclang::TokenType getTokenType() const {
         return mType;
     }
 
-    slang::Lexeme makeLexeme(std::string_view text) const {
+    hclang::Lexeme makeLexeme(std::string_view text) const {
 
         switch(mType) {
         case TT::Identifier:
         case TT::IntegerConstant:
         case TT::StringConstant:
         case TT::CharacterConstant:
-            return slang::Lexeme(std::string(text), mType);
+            return hclang::Lexeme(std::string(text), mType);
             break;
         default:
-            return slang::Lexeme(mType);
+            return hclang::Lexeme(mType);
             break;
         }
     }
 };
 
 
-std::string_view slang::stringifyTokenType(TokenType type) {
+std::string_view hclang::stringifyTokenType(TokenType type) {
     switch(type) {
     case TT::Public:
         return "Public";
@@ -356,7 +356,7 @@ std::string_view slang::stringifyTokenType(TokenType type) {
                                             static_cast<std::uint32_t>(type)));
 }
 
-bool slang::Lexeme::hasText() const {
+bool hclang::Lexeme::hasText() const {
     switch(mType) {
     case TT::Identifier:
     case TT::IntegerConstant:
@@ -370,17 +370,17 @@ bool slang::Lexeme::hasText() const {
     return false;
 }
 
-std::string slang::Lexeme::stringify() const {
+std::string hclang::Lexeme::stringify() const {
     if(hasText()) {
-        return fmt::format("{}: {}", slang::stringifyTokenType(mType), mText);
+        return fmt::format("{}: {}", hclang::stringifyTokenType(mType), mText);
     }
-    return std::string(slang::stringifyTokenType(mType));
+    return std::string(hclang::stringifyTokenType(mType));
 }
 
 
 // Lexer implementation.
 
-slang::Lexer::Lexer(const fs::path &path, const slang::Config &config)
+hclang::Lexer::Lexer(const fs::path &path, const hclang::Config &config)
     : mSource(""),mSourcePath(path),mLineOffsets({}),mCurLineNoPtr(0),mCurPos(0),
       mConfig(config) {
     std::ifstream sourceFile(path);
@@ -410,7 +410,7 @@ slang::Lexer::Lexer(const fs::path &path, const slang::Config &config)
     mLineOffsets.back() = std::numeric_limits<fileposType>::max();
 }
 
-slang::Lexeme slang::Lexer::pull() {
+hclang::Lexeme hclang::Lexer::pull() {
     const static std::array TOKENS = {
         // EOF
         Token("^$", TT::Eof),
@@ -503,7 +503,7 @@ slang::Lexeme slang::Lexer::pull() {
                                       mSource.size() - mCurPos);
 
     // Get matched tokens and store them in a lexeme.
-    std::array<slang::Lexeme, TOKENS.size()> matchedTokens;
+    std::array<hclang::Lexeme, TOKENS.size()> matchedTokens;
     std::size_t i = 0;
     auto curLine = mLineOffsets[mCurLineNoPtr];
     for(const auto &token : TOKENS) {
@@ -515,7 +515,7 @@ slang::Lexeme slang::Lexer::pull() {
                 tmpLinePtr++;
             }
             fileposType endLineNo = mLineOffsets[tmpLinePtr];
-            matchedTokens[i++] = slang::Lexeme(match, token.getTokenType(),
+            matchedTokens[i++] = hclang::Lexeme(match, token.getTokenType(),
                                                curLine, mCurPos - curLine,
                                                endLineNo, endPos - endLineNo);
         }
@@ -531,8 +531,8 @@ slang::Lexeme slang::Lexer::pull() {
     // defined first.
 
     const auto &maxLexeme = *std::max_element(matchedTokens.begin(), matchedTokens.end(),
-                                              [=] (const slang::Lexeme &l1,
-                                                   const slang::Lexeme &l2) -> bool {
+                                              [=] (const hclang::Lexeme &l1,
+                                                   const hclang::Lexeme &l2) -> bool {
                                                   return l1.getTextLength() < l2.getTextLength();
                                               });
     auto lexemeLen = maxLexeme.getTextLength();
@@ -550,7 +550,7 @@ slang::Lexeme slang::Lexer::pull() {
 
 // Identifier implementation.
 
-slang::Identifier::Identifier(const slang::Lexeme &lexeme) : mId("") {
+hclang::Identifier::Identifier(const hclang::Lexeme &lexeme) : mId("") {
     if(lexeme != TT::Identifier) {
         throw std::invalid_argument("Not an id");
     }

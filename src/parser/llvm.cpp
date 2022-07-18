@@ -132,7 +132,7 @@ static inline llvm::Value *makePlus(llvm::Value *lhs, llvm::Value *rhs) {
     return builder.CreateFAdd(lhs, rhs, "addtmp");
 }
 
-static llvm::Value *generateEntryBlockAlloca(const slang::Identifier &id) {
+static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id) {
     auto nId = id.getId();
     if(symbols.count(nId)) {
         return symbols[nId];
@@ -169,7 +169,7 @@ static inline llvm::Value *variableValue(const std::string &name) {
 
 // ParseTree implementation.
 
-void slang::ParseTree::compile(const slang::fs::path &path) const {
+void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     module = new llvm::Module("squish", context);
 
     llvm::FunctionType *mainFuncPrototype = llvm::FunctionType::get(
@@ -255,23 +255,23 @@ void slang::ParseTree::compile(const slang::fs::path &path) const {
     dest.flush();
 }
 
-slang::LLV slang::IntegerConstant::toLLVM() const {
+hclang::LLV hclang::IntegerConstant::toLLVM() const {
     return integerConstant(static_cast<std::int32_t>(mValue));
 }
 
-slang::LLV slang::VariableDeclaration::toLLVM() const {
+hclang::LLV hclang::VariableDeclaration::toLLVM() const {
     return generateEntryBlockAlloca(mId);
 }
 
-slang::LLV slang::VariableInitialization::toLLVM() const {
-    auto alloca = slang::VariableDeclaration::toLLVM();
+hclang::LLV hclang::VariableInitialization::toLLVM() const {
+    auto alloca = hclang::VariableDeclaration::toLLVM();
     auto rhs = mRhs->toLLVM();
 
     // TODo
     return builder.CreateStore(rhs, alloca);
 }
 
-slang::LLV slang::Program::toLLVM() const {
+hclang::LLV hclang::Program::toLLVM() const {
     for(const auto &pd : mStatements) {
         if(pd != nullptr) {
             pd->toLLVM();
@@ -280,10 +280,10 @@ slang::LLV slang::Program::toLLVM() const {
     return nullptr;
 }
 
-slang::LLV slang::BinaryOperator::toLLVM() const {
+hclang::LLV hclang::BinaryOperator::toLLVM() const {
     return nullptr;
 }
 
-slang::LLV slang::DeclarationStatement::toLLVM() const {
+hclang::LLV hclang::DeclarationStatement::toLLVM() const {
     return nullptr;
 }

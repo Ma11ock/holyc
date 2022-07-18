@@ -12,14 +12,14 @@
 #include <variant>
 
 #include "type.hpp"
-#include "../slang.hpp"
+#include "../hclang.hpp"
 #include "../lexer/token.hpp"
 
 namespace llvm {
     class Value;
 }
 
-namespace slang {
+namespace hclang {
     using LLV = llvm::Value*;
 
     enum class Operator {
@@ -205,7 +205,7 @@ namespace slang {
 
     class GrammarRule {
     public:
-        GrammarRule(const slang::Lexeme &lexeme) : mLexeme(lexeme) {}
+        GrammarRule(const hclang::Lexeme &lexeme) : mLexeme(lexeme) {}
         GrammarRule() = default;
         virtual ~GrammarRule() = default;
         virtual LLV toLLVM() const = 0;
@@ -213,7 +213,7 @@ namespace slang {
         virtual std::string_view getClassName() const = 0;
         virtual std::list<std::shared_ptr<GrammarRule>> getChildren() const = 0;
     protected:
-        slang::Lexeme mLexeme;
+        hclang::Lexeme mLexeme;
 
         void printDefault() const;
     };

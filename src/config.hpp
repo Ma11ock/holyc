@@ -5,7 +5,7 @@
 #include <string_view>
 #include <filesystem>
 
-namespace slang {
+namespace hclang {
     class Config {
     public:
         Config(const std::vector<std::string_view> &args);

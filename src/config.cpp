@@ -24,7 +24,7 @@ std::string_view getNextArg<std::string_view>(const argsType &args,
     return args[curIndex++];
 }
 
-slang::Config::Config(const argsType &args)
+hclang::Config::Config(const argsType &args)
     : mSourcePaths({}),mOutputPath("a.out"),mDumpAst(false),mEmitLLVM(false),
       mSyntaxOnly(false) {
 

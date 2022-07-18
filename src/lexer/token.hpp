@@ -8,10 +8,10 @@
 #include <filesystem>
 #include <fmt/format.h>
 
-#include "../slang.hpp"
+#include "../hclang.hpp"
 #include "../config.hpp"
 
-namespace slang {
+namespace hclang {
     using lexemeLen = std::string_view::size_type;
     using fileposType = std::string::size_type;
     constexpr auto noLineNum = std::string::npos;
@@ -136,13 +136,13 @@ namespace slang {
 
 namespace fmt {
     template<>
-    struct fmt::formatter<slang::Identifier>
+    struct fmt::formatter<hclang::Identifier>
     {
         template<typename ParseContext>
         constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
 
         template<typename FormatContext>
-        auto format(const slang::Identifier &id, FormatContext &ctx) {
+        auto format(const hclang::Identifier &id, FormatContext &ctx) {
             return fmt::format_to(ctx.out(), "{}", id.getId());
         }
     };

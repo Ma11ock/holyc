@@ -12,7 +12,7 @@ else()
   message("Build type is set to debug.")
 endif()
 
-project(slang)
+project(hclang)
 
 # Fmtlib
 add_subdirectory(external/fmt)

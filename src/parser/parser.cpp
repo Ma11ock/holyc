@@ -11,14 +11,14 @@
 #include <string_view>
 #include <vector>
 
-using TT = slang::TokenType;
+using TT = hclang::TokenType;
 
 using namespace std::string_view_literals;
 
-class ParseTreeImpl : public slang::ParseTree {
+class ParseTreeImpl : public hclang::ParseTree {
 public:
-    ParseTreeImpl(std::shared_ptr<slang::Lexer> lexer, const slang::Config &config)
-        : slang::ParseTree(lexer, config),mLookAhead(),mReduceQueue({}),
+    ParseTreeImpl(std::shared_ptr<hclang::Lexer> lexer, const hclang::Config &config)
+        : hclang::ParseTree(lexer, config),mLookAhead(),mReduceQueue({}),
           mOperatorStack({}) { }
     virtual ~ParseTreeImpl() = default;
 
@@ -26,41 +26,41 @@ public:
 
 protected:
     /// Current lookahead object.
-    slang::Lexeme mLookAhead;
+    hclang::Lexeme mLookAhead;
     /// Queue used for lookahead tokens read when reducing.
-    std::list<slang::Lexeme> mReduceQueue;
+    std::list<hclang::Lexeme> mReduceQueue;
     /// Stack to help converting infix notation to postfix notation
     /// for the operators.
-    std::list<slang::Operator> mOperatorStack;
+    std::list<hclang::Operator> mOperatorStack;
 
     // Private parsing functions.
     inline void pushTokenToQueue() { mReduceQueue.push_back(mLookAhead); }
-    slang::Lexeme getNextLookahead();
-    slang::GR programStart();
-    slang::decl declarationStart(slang::typeInfo info);
-    slang::decl declarationSpecifiers(slang::typeInfo info, slang::StorageClass sclass);
-    slang::decl declarationIdentifier(slang::typeInfo info, slang::StorageClass sclass,
-                                      slang::Identifier id);
-    slang::decl declarationInitializationEqual(slang::typeInfo info, slang::StorageClass sclass,
-                                               slang::Identifier id);
+    hclang::Lexeme getNextLookahead();
+    hclang::GR programStart();
+    hclang::decl declarationStart(hclang::typeInfo info);
+    hclang::decl declarationSpecifiers(hclang::typeInfo info, hclang::StorageClass sclass);
+    hclang::decl declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
+                                      hclang::Identifier id);
+    hclang::decl declarationInitializationEqual(hclang::typeInfo info, hclang::StorageClass sclass,
+                                               hclang::Identifier id);
 
 };
 
-static bool isUnary(slang::Operator op);
-static bool isControl(slang::Operator op);
-static bool isBinary(slang::Operator op);
-static bool isPrefix(slang::Operator op);
-static bool isPostfix(slang::Operator op);
+static bool isUnary(hclang::Operator op);
+static bool isControl(hclang::Operator op);
+static bool isBinary(hclang::Operator op);
+static bool isPrefix(hclang::Operator op);
+static bool isPostfix(hclang::Operator op);
 
 // ParseTree implementation.
 
-slang::ParseTree::ParseTree(std::shared_ptr<slang::Lexer> lexer,
-                            const slang::Config &config)
+hclang::ParseTree::ParseTree(std::shared_ptr<hclang::Lexer> lexer,
+                            const hclang::Config &config)
     : mProgram(),mLexer(lexer),mConfig(config) {
 }
 
-std::shared_ptr<slang::ParseTree> slang::ParseTree::parse(const slang::Config &config,
-                                                          std::shared_ptr<slang::Lexer> lexer) {
+std::shared_ptr<hclang::ParseTree> hclang::ParseTree::parse(const hclang::Config &config,
+                                                          std::shared_ptr<hclang::Lexer> lexer) {
     // Look ahead token.
     auto result = std::make_shared<ParseTreeImpl>(lexer, config);
     result->parseTokens();
@@ -70,7 +70,7 @@ std::shared_ptr<slang::ParseTree> slang::ParseTree::parse(const slang::Config &c
 
 // ParseTreeImpl implementation.
 
-slang::Lexeme ParseTreeImpl::getNextLookahead() {
+hclang::Lexeme ParseTreeImpl::getNextLookahead() {
     if(!mReduceQueue.empty()) {
         mLookAhead = mReduceQueue.back();
         mReduceQueue.pop_back();
@@ -95,12 +95,12 @@ void ParseTreeImpl::parseTokens() {
     }
 }
 
-slang::GR ParseTreeImpl::programStart() {
+hclang::GR ParseTreeImpl::programStart() {
     getNextLookahead();
 
     switch(mLookAhead.getTokenType()) {
     case TT::U64i:
-        return declarationStart(slang::typeInfo { ""sv, slang::HCType::U64i });
+        return declarationStart(hclang::typeInfo { ""sv, hclang::HCType::U64i });
         break;
     case TT::Eof:
     case TT::Semicolon:
@@ -112,28 +112,28 @@ slang::GR ParseTreeImpl::programStart() {
     }
 }
 
-slang::decl ParseTreeImpl::declarationStart(slang::typeInfo info) {
+hclang::decl ParseTreeImpl::declarationStart(hclang::typeInfo info) {
     getNextLookahead();
 
     switch(mLookAhead.getTokenType()) {
     case TT::Identifier:
-        return declarationIdentifier(info, slang::StorageClass::Default,
-                                     slang::Identifier(mLookAhead));
+        return declarationIdentifier(info, hclang::StorageClass::Default,
+                                     hclang::Identifier(mLookAhead));
         break;
     case TT::Reg:
-        return declarationSpecifiers(info, slang::StorageClass::Reg);
+        return declarationSpecifiers(info, hclang::StorageClass::Reg);
         break;
     case TT::Noreg:
-        return declarationSpecifiers(info, slang::StorageClass::Noreg);
+        return declarationSpecifiers(info, hclang::StorageClass::Noreg);
         break;
     case TT::Public:
-        return declarationSpecifiers(info, slang::StorageClass::Public);
+        return declarationSpecifiers(info, hclang::StorageClass::Public);
         break;
     case TT::Extern:
-        return declarationSpecifiers(info, slang::StorageClass::Extern);
+        return declarationSpecifiers(info, hclang::StorageClass::Extern);
         break;
     case TT::_Extern:
-        return declarationSpecifiers(info, slang::StorageClass::_Extern);
+        return declarationSpecifiers(info, hclang::StorageClass::_Extern);
         break;
     default:
         break;
@@ -141,26 +141,26 @@ slang::decl ParseTreeImpl::declarationStart(slang::typeInfo info) {
     throw std::runtime_error("declstart");
 }
 
-slang::decl ParseTreeImpl::declarationSpecifiers(slang::typeInfo info, slang::StorageClass sclass) {
+hclang::decl ParseTreeImpl::declarationSpecifiers(hclang::typeInfo info, hclang::StorageClass sclass) {
     getNextLookahead();
     switch(mLookAhead.getTokenType()) {
     case TT::Reg:
-        return declarationSpecifiers(info, sclass | slang::StorageClass::Reg);
+        return declarationSpecifiers(info, sclass | hclang::StorageClass::Reg);
         break;
     case TT::Noreg:
-        return declarationSpecifiers(info, sclass | slang::StorageClass::Noreg);
+        return declarationSpecifiers(info, sclass | hclang::StorageClass::Noreg);
         break;
     case TT::Public:
-        return declarationSpecifiers(info, sclass | slang::StorageClass::Public);
+        return declarationSpecifiers(info, sclass | hclang::StorageClass::Public);
         break;
     case TT::Extern:
-        return declarationSpecifiers(info, sclass | slang::StorageClass::Extern);
+        return declarationSpecifiers(info, sclass | hclang::StorageClass::Extern);
         break;
     case TT::_Extern:
-        return declarationSpecifiers(info, sclass | slang::StorageClass::_Extern);
+        return declarationSpecifiers(info, sclass | hclang::StorageClass::_Extern);
         break;
     case TT::Identifier:
-        return declarationIdentifier(info, sclass, slang::Identifier(mLookAhead));
+        return declarationIdentifier(info, sclass, hclang::Identifier(mLookAhead));
         break;
     default:
         break;
@@ -168,14 +168,14 @@ slang::decl ParseTreeImpl::declarationSpecifiers(slang::typeInfo info, slang::St
     throw std::runtime_error("declspec");
 }
 
-slang::decl ParseTreeImpl::declarationIdentifier(slang::typeInfo info, slang::StorageClass sclass,
-                                                 slang::Identifier id) {
+hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
+                                                 hclang::Identifier id) {
     getNextLookahead();
 
     switch(mLookAhead.getTokenType()) {
     case TT::Semicolon:
         pushTokenToQueue();
-        return std::make_shared<slang::VariableDeclaration>(id);
+        return std::make_shared<hclang::VariableDeclaration>(id);
         break;
     case TT::Equals:
         return declarationInitializationEqual(info, sclass, id);
@@ -188,15 +188,15 @@ slang::decl ParseTreeImpl::declarationIdentifier(slang::typeInfo info, slang::St
     throw std::invalid_argument("declid");
 }
 
-slang::decl ParseTreeImpl::declarationInitializationEqual(slang::typeInfo info,
-                                                          slang::StorageClass sclass,
-                                                          slang::Identifier id) {
+hclang::decl ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
+                                                          hclang::StorageClass sclass,
+                                                          hclang::Identifier id) {
     getNextLookahead();
     switch(mLookAhead.getTokenType()) {
     case TT::IntegerConstant:
     {
-        auto i = std::make_shared<slang::IntegerConstant>(mLookAhead.getText());
-        return std::make_shared<slang::VariableInitialization>(id, i);
+        auto i = std::make_shared<hclang::IntegerConstant>(mLookAhead.getText());
+        return std::make_shared<hclang::VariableInitialization>(id, i);
     }
         break;
     default:
@@ -207,8 +207,8 @@ slang::decl ParseTreeImpl::declarationInitializationEqual(slang::typeInfo info,
 
 // Static functions.
 
-bool isUnary(slang::Operator op) {
-    using O = slang::Operator;
+bool isUnary(hclang::Operator op) {
+    using O = hclang::Operator;
     switch(op) {
     case O::LogicalNot:
     case O::Negative:
@@ -225,8 +225,8 @@ bool isUnary(slang::Operator op) {
     return false;
 }
 
-bool isControl(slang::Operator op) {
-    using O = slang::Operator;
+bool isControl(hclang::Operator op) {
+    using O = hclang::Operator;
     switch(op) {
     case O::Lparen:
     case O::Rparen:
@@ -238,16 +238,16 @@ bool isControl(slang::Operator op) {
     return false;
 }
 
-bool isBinary(slang::Operator op) {
+bool isBinary(hclang::Operator op) {
     return !isUnary(op) && !isControl(op);
 }
 
-bool isPrefix(slang::Operator op) {
+bool isPrefix(hclang::Operator op) {
     return !isPostfix(op);
 }
 
-bool isPostfix(slang::Operator op) {
-    using O = slang::Operator;
+bool isPostfix(hclang::Operator op) {
+    using O = hclang::Operator;
     switch(op) {
     case O::PostfixPlusPlus:
     case O::PostfixMinusMinus:

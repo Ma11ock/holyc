@@ -81,7 +81,7 @@
 
         virtual LLV toLLVM() const;
         virtual std::string stringify() const;
-        virtual TypeSpecifier getType() const { return slang::TypeSpecifier::Ref; }
+        virtual TypeSpecifier getType() const { return hclang::TypeSpecifier::Ref; }
     protected:
         TypeSpecifier mPtrType;
     };
@@ -274,14 +274,14 @@
 // Fmt specializations.
 namespace fmt {
     template<>
-    struct formatter<slang::Exp> {
+    struct formatter<hclang::Exp> {
         template<typename P>
         constexpr auto parse(P &ctx) {
             return ctx.begin();
         }
 
         template<typename FormatContext>
-        auto format(const slang::Exp &exp, FormatContext &ctx) {
+        auto format(const hclang::Exp &exp, FormatContext &ctx) {
             if(exp) {
                 return format_to(ctx.out(), "{}", exp->stringify());
             }
@@ -290,27 +290,27 @@ namespace fmt {
     };
 
     template<>
-    struct formatter<slang::Conditional> {
+    struct formatter<hclang::Conditional> {
         template<typename P>
         constexpr auto parse(P &ctx) {
             return ctx.begin();
         }
 
         template<typename FormatContext>
-        auto format(const slang::Conditional &val, FormatContext &ctx) {
+        auto format(const hclang::Conditional &val, FormatContext &ctx) {
             return format_to(ctx.out(), "{}", val.stringify());
         }
     };
 
     template<>
-    struct formatter<std::shared_ptr<slang::Identifier>> {
+    struct formatter<std::shared_ptr<hclang::Identifier>> {
         template<typename P>
         constexpr auto parse(P &ctx) {
             return ctx.begin();
         }
 
         template<typename FormatContext>
-        auto format(const std::shared_ptr<slang::Identifier> &exp, FormatContext &ctx) {
+        auto format(const std::shared_ptr<hclang::Identifier> &exp, FormatContext &ctx) {
             if(exp) {
                 return format_to(ctx.out(), "{}", exp->stringify());
             }
@@ -319,14 +319,14 @@ namespace fmt {
     };
 
     template<>
-    struct formatter<std::shared_ptr<slang::Statement>> {
+    struct formatter<std::shared_ptr<hclang::Statement>> {
         template<typename P>
         constexpr auto parse(P &ctx) {
             return ctx.begin();
         }
 
         template<typename FormatContext>
-        auto format(const std::shared_ptr<slang::Statement> &exp, FormatContext &ctx) {
+        auto format(const std::shared_ptr<hclang::Statement> &exp, FormatContext &ctx) {
             if(exp) {
                 return format_to(ctx.out(), "{}", exp->stringify());
             }
@@ -335,14 +335,14 @@ namespace fmt {
     };
 
     template<>
-    struct formatter<std::shared_ptr<slang::Block>> {
+    struct formatter<std::shared_ptr<hclang::Block>> {
         template<typename P>
         constexpr auto parse(P &ctx) {
             return ctx.begin();
         }
 
         template<typename FormatContext>
-        auto format(const std::shared_ptr<slang::Block> &exp, FormatContext &ctx) {
+        auto format(const std::shared_ptr<hclang::Block> &exp, FormatContext &ctx) {
             if(exp) {
                 return format_to(ctx.out(), "{}", exp->stringify());
             }
@@ -351,14 +351,14 @@ namespace fmt {
     };
 
     template<>
-    struct formatter<std::shared_ptr<slang::If>> {
+    struct formatter<std::shared_ptr<hclang::If>> {
         template<typename P>
         constexpr auto parse(P &ctx) {
             return ctx.begin();
         }
 
         template<typename FormatContext>
-        auto format(const std::shared_ptr<slang::If> &exp, FormatContext &ctx) {
+        auto format(const std::shared_ptr<hclang::If> &exp, FormatContext &ctx) {
             if(exp) {
                 return format_to(ctx.out(), "{}", exp->stringify());
             }

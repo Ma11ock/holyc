@@ -3,7 +3,7 @@
 
 #include "ast.hpp"
 
-namespace slang {
+namespace hclang {
     // Type handler.
     // class Type {
     // public:

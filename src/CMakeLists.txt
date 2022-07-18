@@ -42,6 +42,23 @@ add_executable(
   main.cpp
   )
 
+# Doxygen
+find_package(Doxygen OPTIONAL_COMPONENTS mscgen dia dot)
+
+if(DOXYGEN_FOUND)
+  message(STATUS "Doxygen version ${DOXYGEN_VERSION} found.")
+  if(HCLANG_BUILD_DOCS)
+    message(STATUS "Setting up docs...")
+    doxygen_add_docs(${BINARY}_docs ${SRC_SOURCES} main.cpp)
+  endif()
+else()
+  if(HCLANG_BUILD_DOCS)
+    message(FATAL_ERROR "Doxygen not found, but HCLANG_BUILD_DOCS set to 1.")
+  else()
+    message(WARNING "Doxygen not found...skipping.")
+  endif()
+endif()
+
 # Dependencies
 # LLVM
 find_package(LLVM REQUIRED CONFIG)

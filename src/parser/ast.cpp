@@ -1,3 +1,7 @@
+/***************************************************************************
+ * @file ast.cpp                                                           *
+ * @brief Abstract syntax tree objects (implementation).                   *
+ ***************************************************************************/
 #include "ast.hpp"
 
 #include <fmt/core.h>
@@ -27,7 +31,54 @@ void hclang::GrammarRule::pprint() const {
 
 // IntegerConstant.
 
-hclang::IntegerConstant::IntegerConstant(std::string_view source) : mValue(0),mIsSigned(false) {
+hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::HCType type,
+                                         bool isSigned, const hclang::Lexeme &l)
+    : Constant(l),mValue(value),mType(type),mIsSigned(isSigned) {
+    // Test intrinsic type.
+    using hct = hclang::HCType;
+    switch(type) {
+    case hct::Class:
+    case hct::Enum:
+    case hct::Union:
+        throw std::invalid_argument(fmt::format("{} is not an integer type",
+                                                typeToString(type)));
+        break;
+    case hct::I0i:
+    case hct::U0i:
+        throw std::invalid_argument(fmt::format("{} cannot have constants",
+                                                typeToString(type)));
+        break;
+    default:
+        break;
+    }
+}
+
+hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned)
+    : mValue(0),mIsSigned(isSigned) {
+    if(isSigned) {
+        std::int64_t value = 0;
+        auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value);
+
+        if(ptr != source.end()) {
+            throw std::invalid_argument(fmt::format("{} is not a valid int64",
+                                                    source));
+        }
+
+        switch(ec) {
+        case std::errc::invalid_argument:
+            throw std::invalid_argument(fmt::format("{} is not a valid int64",
+                                                    source));
+            break;
+        case std::errc::result_out_of_range:
+            throw std::range_error(fmt::format("{} is out of range of 64 bit integer",
+                                               source));
+            break;
+        default:
+            break;
+        }
+        mValue = static_cast<std::uint64_t>(value);
+        return;
+    }
     auto [ptr, ec] = std::from_chars(source.begin(), source.end(), mValue);
 
     if(ptr != source.end()) {
@@ -175,7 +226,7 @@ std::list<hclang::programData> hclang::CompoundStatement::getChildren() const {
 
 void hclang::BinaryOperator::pprint() const {
     printDefault();
-    fmt::print(" {}", hclang::operatorToLexeme(mOp));
+    fmt::print(" {}", hclang::operatorToString(mOp));
 }
 
 std::string_view hclang::BinaryOperator::getClassName() const {
@@ -204,7 +255,7 @@ std::list<hclang::programData> hclang::DeclarationStatement::getChildren() const
 
 // Functions.
 
-std::string_view hclang::operatorToLexeme(Operator op) {
+std::string_view hclang::operatorToString(hclang::Operator op) {
     switch(op) {
     case O::Add:
         return "+";
@@ -212,4 +263,55 @@ std::string_view hclang::operatorToLexeme(Operator op) {
         break;
     }
     return "";
+}
+
+std::string_view hclang::typeToString(hclang::HCType type) {
+    using hct = hclang::HCType;
+    switch(type) {
+    case hct::U0i:
+        return "U0i";
+        break;
+    case hct::U8i:
+        return "U8i";
+        break;
+    case hct::U16i:
+        return "U16i";
+        break;
+    case hct::U32i:
+        return "U32i";
+        break;
+    case hct::U64i:
+        return "U64i";
+        break;
+    case hct::I0i:
+        return "I0i";
+        break;
+    case hct::I8i:
+        return "I8i";
+        break;
+    case hct::I16i:
+        return "I16i";
+        break;
+    case hct::I32i:
+        return "I32i";
+        break;
+    case hct::I64i:
+        return "I64i";
+        break;
+    case hct::Pointer:
+        return "Pointer";
+        break;
+    case hct::Class:
+        return "Class";
+        break;
+    case hct::Enum:
+        return "Enum";
+        break;
+    case hct::Union:
+        return "Union";
+    default:
+        break;
+    }
+    throw std::invalid_argument(fmt::format("{} is not a valid HCType",
+                                            static_cast<int>(type)));
 }

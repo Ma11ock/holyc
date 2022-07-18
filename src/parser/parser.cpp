@@ -100,7 +100,7 @@ hclang::GR ParseTreeImpl::programStart() {
 
     switch(mLookAhead.getTokenType()) {
     case TT::U64i:
-        return declarationStart(hclang::typeInfo { ""sv, hclang::HCType::U64i });
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::U64i });
         break;
     case TT::Eof:
     case TT::Semicolon:

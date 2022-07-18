@@ -25,6 +25,7 @@ set(SRC_SOURCES
   parser/parser.hpp
   parser/ast.hpp
   parser/llvm.cpp
+  util.hpp
   )
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -52,7 +53,7 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 # Linking
 
-#llvm_map_components_to_libnames(llvm_libs support core irreader)
+llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 target_link_libraries(
   ${BINARY}

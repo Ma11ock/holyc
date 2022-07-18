@@ -19,11 +19,19 @@ namespace slang {
         inline bool shouldDumpAst() const {
             return mDumpAst;
         }
+        inline bool shouldEmitLLVM() const {
+            return mEmitLLVM;
+        }
+        inline bool syntaxOnly() const {
+            return mSyntaxOnly;
+        }
 
     protected:
         std::vector<std::filesystem::path> mSourcePaths;
         std::filesystem::path mOutputPath;
         bool mDumpAst;
+        bool mEmitLLVM;
+        bool mSyntaxOnly;
     };
 }
 

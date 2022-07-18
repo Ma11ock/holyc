@@ -15,8 +15,8 @@ static T getNextArg(const argsType &args, argsLenType &curIndex) {
 }
 
 template<>
-static std::string_view getNextArg<std::string_view>(const argsType &args,
-                                                     argsLenType &curIndex) {
+std::string_view getNextArg<std::string_view>(const argsType &args,
+                                              argsLenType &curIndex) {
     if(curIndex >= args.size()) {
         throw std::invalid_argument("argument to '-o' is missing (expected a file path)");
     }
@@ -25,10 +25,8 @@ static std::string_view getNextArg<std::string_view>(const argsType &args,
 }
 
 slang::Config::Config(const argsType &args)
-    : mSourcePaths({}),mOutputPath("a.out"),mDumpAst(false) {
-    if(args.empty()) {
-        throw std::invalid_argument("no input files");
-    }
+    : mSourcePaths({}),mOutputPath("a.out"),mDumpAst(false),mEmitLLVM(false),
+      mSyntaxOnly(false) {
 
     for(argsLenType i = 0; i < args.size(); i++) {
         const auto &arg = args[i];
@@ -37,8 +35,16 @@ slang::Config::Config(const argsType &args)
             mOutputPath = getNextArg<std::string_view>(args, i);
         } else if(arg == "-ast-dump") {
             mDumpAst = true;
+        } else if(arg == "-emit-llvm") {
+            mEmitLLVM = true;
+        } else if(arg == "-fsyntax-only") {
+            mSyntaxOnly = true;
         } else { // No flag.
             mSourcePaths.push_back(arg);
         }
+    }
+
+    if(mSourcePaths.empty()) {
+        throw std::invalid_argument("no input files");
     }
 }

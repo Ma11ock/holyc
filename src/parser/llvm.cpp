@@ -13,6 +13,9 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/MC/TargetRegistry.h>
 
+#include <string_view>
+#include <map>
+
 
 // Static globals.
 
@@ -20,20 +23,7 @@ static llvm::LLVMContext context;
 static llvm::IRBuilder<> builder(context);
 static llvm::Module *module = nullptr;
 static llvm::Function *mainFunc = nullptr;
-
-static llvm::Value *generateEntryBlockAlloca(const slang::Identifier &id) {
-
-    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
-    llvm::IRBuilder<> tmpBuilder(
-        &curFn->getEntryBlock(),
-        curFn->getEntryBlock().begin()
-        );
-    llvm::StringRef name(id.getId().data(), id.getId().size());
-    auto alloca = tmpBuilder.CreateAlloca(
-        llvm::Type::getFloatTy(context), nullptr, name
-        );
-    return alloca;
-}
+static std::map<std::string_view, llvm::Value*> symbols;
 
 class BlockStack {
 protected:
@@ -102,16 +92,79 @@ static BlockStack blockStack;
 
 // Static functions.
 
-static inline llvm::Value *realConstant(double val) {
+static inline llvm::Value *f64Constant(double val) {
     return llvm::ConstantFP::get(context, llvm::APFloat(val));
+}
+
+static inline llvm::Value *integerConstant(std::uint8_t val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(8, val, false));
+}
+
+static inline llvm::Value *integerConstant(std::int8_t val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(8, val, true));
+}
+
+static inline llvm::Value *integerConstant(std::uint16_t val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(16, val, false));
+}
+
+static inline llvm::Value *integerConstant(std::int16_t val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(16, val, true));
+}
+
+static inline llvm::Value *integerConstant(std::uint32_t val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(32, val, false));
 }
 
 static inline llvm::Value *integerConstant(std::int32_t val) {
     return llvm::ConstantInt::get(context, llvm::APInt(32, val, true));
 }
 
+static inline llvm::Value *integerConstant(std::uint64_t val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(64, val, false));
+}
+
+static inline llvm::Value *integerConstant(std::int64_t val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(64, val, true));
+}
+
 static inline llvm::Value *makePlus(llvm::Value *lhs, llvm::Value *rhs) {
     return builder.CreateFAdd(lhs, rhs, "addtmp");
+}
+
+static llvm::Value *generateEntryBlockAlloca(const slang::Identifier &id) {
+    auto nId = id.getId();
+    if(symbols.count(nId)) {
+        return symbols[nId];
+    }
+
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tmpBuilder(
+        &curFn->getEntryBlock(),
+        curFn->getEntryBlock().begin()
+        );
+    llvm::StringRef name(nId.data(), nId.size());
+    auto alloca = tmpBuilder.CreateAlloca(
+        llvm::Type::getInt32Ty(context), nullptr, name
+        );
+    symbols[nId] = alloca;
+    return alloca;
+}
+
+
+static inline llvm::Value *variableValue(const std::string &name) {
+    llvm::Value *ptr = nullptr;
+    if(symbols.count(name)) {
+        ptr = symbols[name];
+    } else {
+        ptr = integerConstant(0);
+    }
+
+    return builder.CreateLoad(
+        llvm::Type::getInt32Ty(context),
+        ptr,
+        name.c_str()
+        );
 }
 
 // ParseTree implementation.
@@ -120,25 +173,41 @@ void slang::ParseTree::compile(const slang::fs::path &path) const {
     module = new llvm::Module("squish", context);
 
     llvm::FunctionType *mainFuncPrototype = llvm::FunctionType::get(
-        llvm::Type::getInt8Ty(context), false
+        llvm::Type::getInt32Ty(context), false
         );
 
     mainFunc = llvm::Function::Create(mainFuncPrototype, llvm::GlobalValue::ExternalLinkage,
-                                      "slang_main", module);
+                                      "hclang_main", module);
     blockStack.init();
 
 
+    // AST->LLVM.
     mProgram.toLLVM();
 
     auto retBlock = llvm::BasicBlock::Create(context, "ret", mainFunc);
     blockStack.push(retBlock);
-    builder.CreateRet(integerConstant(0));
+    if(symbols.count("result")) {
+        builder.CreateRet(variableValue("result"));
+    } else {
+        builder.CreateRet(integerConstant(0));
+    }
     blockStack.pop();
     builder.CreateBr(retBlock);
 
+    // Verify.
+    llvm::verifyModule(*module);
+
     std::string realPath = path.u8string();
     if(realPath.empty()) {
-        realPath = u8"a.out";
+        realPath = "a.out";
+    }
+
+    if(mConfig.shouldEmitLLVM()) {
+        module->print(llvm::outs(), nullptr);
+    }
+
+    if(mConfig.syntaxOnly()) {
+        return;
     }
 
     // Compile to object code.
@@ -187,7 +256,7 @@ void slang::ParseTree::compile(const slang::fs::path &path) const {
 }
 
 slang::LLV slang::IntegerConstant::toLLVM() const {
-    return nullptr;
+    return integerConstant(static_cast<std::int32_t>(mValue));
 }
 
 slang::LLV slang::VariableDeclaration::toLLVM() const {
@@ -196,9 +265,10 @@ slang::LLV slang::VariableDeclaration::toLLVM() const {
 
 slang::LLV slang::VariableInitialization::toLLVM() const {
     auto alloca = slang::VariableDeclaration::toLLVM();
+    auto rhs = mRhs->toLLVM();
 
     // TODo
-    return alloca;
+    return builder.CreateStore(rhs, alloca);
 }
 
 slang::LLV slang::Program::toLLVM() const {

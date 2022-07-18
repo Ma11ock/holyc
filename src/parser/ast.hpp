@@ -209,13 +209,17 @@ namespace slang {
         GrammarRule() = default;
         virtual ~GrammarRule() = default;
         virtual LLV toLLVM() const = 0;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
         virtual std::string_view getClassName() const = 0;
+        virtual std::list<std::shared_ptr<GrammarRule>> getChildren() const = 0;
     protected:
         slang::Lexeme mLexeme;
+
+        void printDefault() const;
     };
 
     using GR = std::shared_ptr<GrammarRule>;
+    using programData = std::shared_ptr<GrammarRule>;
 
     class Expression : public GrammarRule {
     public:
@@ -232,8 +236,9 @@ namespace slang {
             : mOp(op),mLhs(lhs),mRhs(rhs) {}
         virtual ~BinaryOperator() = default;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
         virtual std::string_view getClassName() const;
+        virtual std::list<programData> getChildren() const;
     private:
         Operator mOp;
         exp mLhs;
@@ -253,10 +258,10 @@ namespace slang {
         Assign(const Identifier &id, exp expr) : mLhs(id),mRhs(expr) {}
         virtual ~Assign() = default;
 
+        virtual std::list<programData> getChildren() const;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
         virtual std::string_view getClassName() const;
-
     protected:
         Identifier mLhs;
         exp mRhs;
@@ -277,8 +282,9 @@ namespace slang {
         IntegerConstant(std::string_view source);
         virtual ~IntegerConstant() = default;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
         virtual std::string_view getClassName() const;
+        virtual std::list<programData> getChildren() const;
     protected:
         std::uint64_t mValue;
         bool mIsSigned;
@@ -290,8 +296,9 @@ namespace slang {
         void add(stmnt statement);
         virtual ~CompoundStatement() = default;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
         virtual std::string_view getClassName() const;
+        virtual std::list<programData> getChildren() const;
     protected:
         statementList mStatementList;
     };
@@ -303,8 +310,9 @@ namespace slang {
         FunctionDefinition() = default;
         virtual ~FunctionDefinition() = default;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
         virtual std::string_view getClassName() const;
+        virtual std::list<programData> getChildren() const;
     };
 
     class Declaration : public GrammarRule {
@@ -322,7 +330,8 @@ namespace slang {
         virtual ~VariableDeclaration() = default;
         virtual std::string_view getClassName() const;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
+        virtual std::list<programData> getChildren() const;
     protected:
         Identifier mId;
         // TODO type.
@@ -337,7 +346,8 @@ namespace slang {
         virtual ~VariableInitialization() = default;
         virtual std::string_view getClassName() const;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
+        virtual std::list<programData> getChildren() const;
     protected:
         /// RHS.
         exp mRhs;
@@ -353,12 +363,11 @@ namespace slang {
         void push(varDecl decl);
         virtual std::string_view getClassName() const;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
+        virtual std::list<programData> getChildren() const;
     protected:
         std::list<varDecl> mDecls;
     };
-
-    using programData = std::shared_ptr<GrammarRule>;
 
     class Program : public GrammarRule {
     public:
@@ -366,8 +375,9 @@ namespace slang {
         void add(programData pd);
         virtual ~Program() = default;
         virtual LLV toLLVM() const;
-        virtual std::string stringify() const;
+        virtual void pprint() const;
         virtual std::string_view getClassName() const;
+        virtual std::list<programData> getChildren() const;
     protected:
         std::list<programData> mStatements;
     };

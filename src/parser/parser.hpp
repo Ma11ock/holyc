@@ -21,8 +21,9 @@ namespace slang {
     protected:
         Program mProgram;
         std::shared_ptr<slang::Lexer> mLexer;
+        const slang::Config &mConfig;
 
-        ParseTree(std::shared_ptr<slang::Lexer> lexer);
+        ParseTree(std::shared_ptr<slang::Lexer> lexer, const Config &config);
         void setupLineOffsetInfo();
     };
 }

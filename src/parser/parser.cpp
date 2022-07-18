@@ -18,14 +18,13 @@ using namespace std::string_view_literals;
 class ParseTreeImpl : public slang::ParseTree {
 public:
     ParseTreeImpl(std::shared_ptr<slang::Lexer> lexer, const slang::Config &config)
-        : slang::ParseTree(lexer),mConfig(config),mLookAhead(),mReduceQueue({}),
+        : slang::ParseTree(lexer, config),mLookAhead(),mReduceQueue({}),
           mOperatorStack({}) { }
     virtual ~ParseTreeImpl() = default;
 
     void parseTokens();
 
 protected:
-    const slang::Config &mConfig;
     /// Current lookahead object.
     slang::Lexeme mLookAhead;
     /// Queue used for lookahead tokens read when reducing.
@@ -55,8 +54,9 @@ static bool isPostfix(slang::Operator op);
 
 // ParseTree implementation.
 
-slang::ParseTree::ParseTree(std::shared_ptr<slang::Lexer> lexer)
-    : mProgram(),mLexer(lexer) {
+slang::ParseTree::ParseTree(std::shared_ptr<slang::Lexer> lexer,
+                            const slang::Config &config)
+    : mProgram(),mLexer(lexer),mConfig(config) {
 }
 
 std::shared_ptr<slang::ParseTree> slang::ParseTree::parse(const slang::Config &config,
@@ -88,6 +88,10 @@ slang::Lexeme ParseTreeImpl::getNextLookahead() {
 void ParseTreeImpl::parseTokens() {
     for(auto gr = programStart(); gr != nullptr; gr = programStart()) {
         mProgram.add(gr);
+    }
+
+    if(mConfig.shouldDumpAst()) {
+        mProgram.pprint();
     }
 }
 
@@ -187,7 +191,6 @@ slang::decl ParseTreeImpl::declarationIdentifier(slang::typeInfo info, slang::St
 slang::decl ParseTreeImpl::declarationInitializationEqual(slang::typeInfo info,
                                                           slang::StorageClass sclass,
                                                           slang::Identifier id) {
-
     getNextLookahead();
     switch(mLookAhead.getTokenType()) {
     case TT::IntegerConstant:
@@ -223,7 +226,7 @@ bool isUnary(slang::Operator op) {
 }
 
 bool isControl(slang::Operator op) {
-    using O =slang::Operator;
+    using O = slang::Operator;
     switch(op) {
     case O::Lparen:
     case O::Rparen:
@@ -244,7 +247,7 @@ bool isPrefix(slang::Operator op) {
 }
 
 bool isPostfix(slang::Operator op) {
-    using O =slang::Operator;
+    using O = slang::Operator;
     switch(op) {
     case O::PostfixPlusPlus:
     case O::PostfixMinusMinus:

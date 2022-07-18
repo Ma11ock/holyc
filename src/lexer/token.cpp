@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 #include <algorithm>
 #include <limits>
+#include "../util.hpp"
 
 using TT = slang::TokenType;
 using namespace std::string_view_literals;
@@ -68,6 +69,15 @@ public:
 
 std::string_view slang::stringifyTokenType(TokenType type) {
     switch(type) {
+    case TT::Public:
+        return "Public";
+        break;
+    case TT::Reg:
+        return "Reg";
+        break;
+    case TT::Noreg:
+        return "Noreg";
+        break;
     case TT::Error:
         return "Error";
         break;
@@ -109,6 +119,9 @@ std::string_view slang::stringifyTokenType(TokenType type) {
         break;
     case TT::Boolean:
         return "Boolean";
+        break;
+    case TT::I0i:
+        return "I0i";
         break;
     case TT::I8i:
         return "I8i";
@@ -248,6 +261,39 @@ std::string_view slang::stringifyTokenType(TokenType type) {
     case TT::Sizeof:
         return "Sizeof";
         break;
+    case TT::PlusEqual:
+        return "PlusEqual";
+        break;
+    case TT::MinusEqual:
+        return "MinusEqual";
+        break;
+    case TT::TimesEqual:
+        return "TimesEqual";
+        break;
+    case TT::DividedByEqual:
+        return "DividedByEqual";
+        break;
+    case TT::LeftshiftEqual:
+        return "LeftshiftEqual";
+        break;
+    case TT::RightshiftEqual:
+        return "RightshiftEqual";
+        break;
+    case TT::ModuloEqual:
+        return "ModuloEqual";
+        break;
+    case TT::OrEqual:
+        return "OrEqual";
+        break;
+    case TT::AndEqual:
+        return "AndEqual";
+        break;
+    case TT::PlusPlus:
+        return "PlusPlus";
+        break;
+    case TT::MinusMinus:
+        return "MinusMinus";
+        break;
     case TT::Semicolon:
         return "Semicolon";
         break;
@@ -338,8 +384,8 @@ slang::Lexer::Lexer(const fs::path &path, const slang::Config &config)
     : mSource(""),mSourcePath(path),mLineOffsets({}),mCurLineNoPtr(0),mCurPos(0),
       mConfig(config) {
     std::ifstream sourceFile(path);
-    if(sourceFile.bad() || sourceFile.fail()) {
-        throw std::invalid_argument("TODO");
+    if(!sourceFile) {
+        throw std::system_error(util::getError(), std::system_category(), path.string());
     }
 
     std::stringstream buffer;

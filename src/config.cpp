@@ -4,11 +4,32 @@
 #include <string_view>
 #include <filesystem>
 #include <fmt/core.h>
+#include "log.hpp"
 
 namespace fs = std::filesystem;
 using namespace std::string_view_literals;
 using argsType = std::vector<std::string_view>;
 using argsLenType = argsType::size_type;
+
+static const std::string_view HELP_STR = R"HELP(
+OVERVIEW: hclang, a HolyC compiler targeting LLVM.
+
+USAGE: hclang [options] file...
+
+OPTIONS:
+  -o <file>        Write output to <file>
+  -help            Print this help message
+  -ast-dump        Print out the AST for input file
+  -emit-llvm       Do not compile to machine code, instead output LLVM bytecode
+  -fsyntax-only    Do not compile, just verify validity of input file (emits
+                   warnings and errors)
+  -v               Verbose. Enables logging
+
+HolyC was created by Terry A. Davis.
+
+For bug reporting or contributions please see the following URLs:
+   <https://github.com/Ma11ock/holyc>
+)HELP";
 
 template<typename T>
 static T getNextArg(const argsType &args, argsLenType &curIndex) {
@@ -39,6 +60,11 @@ hclang::Config::Config(const argsType &args)
             mEmitLLVM = true;
         } else if(arg == "-fsyntax-only") {
             mSyntaxOnly = true;
+        } else if(arg == "-v") {
+            hclang::log::isEnabled = true;
+        } else if(arg == "-help") {
+            mHelp = true;
+            fmt::print("{}", HELP_STR);
         } else { // No flag.
             mSourcePaths.push_back(arg);
         }

@@ -21,12 +21,7 @@ void hclang::GrammarRule::printDefault() const {
 }
 
 void hclang::GrammarRule::pprint() const {
-    fmt::print("0x{} <line:{}:{},col:{}:{}>",
-               reinterpret_cast<std::size_t>(this),
-               fmt::styled(mLexeme.getStartLineNumber(), fg(fmt::color::gold)),
-               fmt::styled(mLexeme.getEndLineNumber(), fg(fmt::color::gold)),
-               fmt::styled(mLexeme.getStartLineNumber(), fg(fmt::color::gold)),
-               fmt::styled(mLexeme.getEndColNumber(), fg(fmt::color::gold)));
+    fmt::print("0x{:x} {}", reinterpret_cast<std::size_t>(this), mLexeme);
 }
 
 // IntegerConstant.
@@ -204,7 +199,7 @@ void hclang::Program::pprint() const {
         return;
     }
 
-    std::list<pdPrintData> stack = { pdPrintData(mStatements.front(), UINT32_C(1)) };
+    std::list<pdPrintData> stack = { pdPrintData(mStatements.front(), 1) };
     std::list<hclang::programData> visited = { mStatements.front() };
 
     std::uint32_t lastLevel = 0;

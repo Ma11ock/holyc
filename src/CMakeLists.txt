@@ -26,6 +26,7 @@ set(SRC_SOURCES
   parser/ast.hpp
   parser/llvm.cpp
   util.hpp
+  log.hpp
   )
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)

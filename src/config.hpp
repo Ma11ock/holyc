@@ -25,6 +25,9 @@ namespace hclang {
         inline bool syntaxOnly() const {
             return mSyntaxOnly;
         }
+        inline bool wasHelp() const {
+            return mHelp;
+        }
 
     protected:
         std::vector<std::filesystem::path> mSourcePaths;
@@ -32,6 +35,7 @@ namespace hclang {
         bool mDumpAst;
         bool mEmitLLVM;
         bool mSyntaxOnly;
+        bool mHelp;
     };
 }
 

@@ -7,6 +7,7 @@
 #include <string_view>
 #include <filesystem>
 #include <fmt/format.h>
+#include <fmt/color.h>
 
 #include "../hclang.hpp"
 #include "../config.hpp"
@@ -147,4 +148,51 @@ namespace fmt {
         }
     };
 }
+
+/// Hack for printing file positions with npos positions as '?' easily.
+struct __fileposPrinter {
+    /// Filepos to wrap around.
+    hclang::fileposType pos;
+};
+
+namespace fmt {
+    template<>
+    struct fmt::formatter<__fileposPrinter>
+    {
+        template<typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+
+        template<typename FormatContext>
+        auto format(const __fileposPrinter &fp, FormatContext &ctx) {
+            if(fp.pos == hclang::noLineNum) {
+                return fmt::format_to(ctx.out(), "{}",
+                                      fmt::styled('?', fg(fmt::color::gold)));
+            }
+            return
+                fmt::format_to(ctx.out(), "{}",
+                               fmt::styled(fp.pos, fg(fmt::color::gold)));
+        }
+    };
+}
+
+namespace fmt {
+    template<>
+    struct fmt::formatter<hclang::Lexeme>
+    {
+        template<typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+
+        template<typename FormatContext>
+        auto format(const hclang::Lexeme &l, FormatContext &ctx) {
+            return
+                fmt::format_to(ctx.out(), "<line:{}:{},col:{}:{}>",
+                               __fileposPrinter{l.getStartLineNumber()},
+                               __fileposPrinter{l.getEndLineNumber()},
+                               __fileposPrinter{l.getStartColNumber()},
+                               __fileposPrinter{l.getEndColNumber()}
+                    );
+        }
+    };
+}
+
 #endif /* SLANG_TOKEN_HPP */

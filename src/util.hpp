@@ -27,6 +27,12 @@ namespace util {
         fmt::print("{:{}}", "", indent);
         fmt::print(formatStr, std::forward<Args>(args)...);
     }
+
+    template<typename T>
+    void oracle(T &output) {
+        T value;
+        output = value;
+    }
 }
 
 /**

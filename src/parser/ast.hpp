@@ -110,6 +110,7 @@ namespace hclang {
         I16i,
         I32i,
         I64i,
+        F64,
         Pointer,
         // Need identifiers.
         Class,
@@ -283,6 +284,54 @@ namespace hclang {
      * @see Expression
      */
     using exp = std::shared_ptr<Expression>;
+
+    /**
+     * Cast one intrinsic into another.
+     */
+    class Cast : public Expression {
+    public:
+        Cast(exp expr, typeInfo into, const Lexeme l = Lexeme());
+        /// Defaulted destructor.
+        virtual ~Cast() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM() const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::list<programData> getChildren() const;
+    protected:
+        /// Type to cast `mExpr` into.
+        typeInfo mIntoType;
+        /// Expression to cast.
+        exp mExpr;
+    };
+
+    /**
+     * (Implicitly) cast one intrinsic into another.
+     */
+    class ImplicitCast : public Cast {
+    public:
+        ImplicitCast(exp expr, typeInfo into) : Cast(expr, into) {}
+        /// Defaulted destructor.
+        virtual ~ImplicitCast() = default;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+    };
+
 
     /**
      * Binary operator language construct (any operator with two arguments).
@@ -550,12 +599,14 @@ namespace hclang {
         /**
          * Value constructor. Set the ID of the declared variable.
          */
-        VariableDeclaration(const Identifier &id) : mId(id) {}
+        VariableDeclaration(const Identifier &id, typeInfo type)
+            : mId(id),mType(type) {}
         /**
          * Value constructor. Set the lexeme.
          * @param lexeme Value to set `lexeme` to.
          */
-        VariableDeclaration(const Lexeme &lexeme) : mId(lexeme) {}
+        VariableDeclaration(const Lexeme &lexeme, typeInfo type)
+            : mId(lexeme),mType(type) {}
         /// Destructor. Default.
         virtual ~VariableDeclaration() = default;
         /**
@@ -578,7 +629,8 @@ namespace hclang {
     protected:
         /// Identifier of the declared variable.
         Identifier mId;
-        // TODO type.
+        /// Type information.
+        typeInfo mType;
     };
 
     /**
@@ -598,8 +650,7 @@ namespace hclang {
          * @param id Identifier of the declared variable.
          * @param expr Expression to set the declared variable's value to.
          */
-        VariableInitialization(const Identifier &id, exp expr)
-            : VariableDeclaration(id),mRhs(expr) {}
+        VariableInitialization(const Identifier &id, typeInfo type, exp expr);
         /// Destructor. Default.
         virtual ~VariableInitialization() = default;
         /**
@@ -714,6 +765,36 @@ namespace hclang {
      * @return `type` converted to a string.
      */
     std::string_view typeToString(HCType type);
+
+    /**
+     * Get the size of a type.
+     * @param t1 Type to query size of.
+     * @return sizeof(t1).
+     */
+    std::size_t sizeofType(typeInfo t1);
+
+    /**
+     * Compare the size of t1 and t2. Return true if sizeof(t1) > sizeof(t2).
+     * @param t1 Left hand side of comparison.
+     * @param t2 Right hand side of comparison.
+     * @return True if sizeof(t1) > sizeof(t2).
+     */
+    bool sizeofGt(typeInfo t1, typeInfo t2);
+
+    /**
+     * Compare the size of t1 and t2. Return true if sizeof(t1) == sizeof(t2).
+     * @param t1 Left hand side of comparison.
+     * @param t2 Right hand side of comparison.
+     * @return True if sizeof(t1) == sizeof(t2).
+     */
+    bool sizeofEq(typeInfo t1, typeInfo t2);
+
+    /**
+     * Return true if `t1` is an integer type (including pointer).
+     * @param t1 Type to query.
+     * @return true if `t1` is an integer type (including pointer).
+     */
+    bool isInteger(typeInfo t1);
 }
 
 #endif /* SLANG_AST_HPP */

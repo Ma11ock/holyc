@@ -40,9 +40,9 @@ protected:
     hclang::decl declarationStart(hclang::typeInfo info);
     hclang::decl declarationSpecifiers(hclang::typeInfo info, hclang::StorageClass sclass);
     hclang::decl declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
-                                      hclang::Identifier id);
+                                       hclang::Identifier id);
     hclang::decl declarationInitializationEqual(hclang::typeInfo info, hclang::StorageClass sclass,
-                                               hclang::Identifier id);
+                                                hclang::Identifier id);
 
 };
 
@@ -55,12 +55,12 @@ static bool isPostfix(hclang::Operator op);
 // ParseTree implementation.
 
 hclang::ParseTree::ParseTree(std::shared_ptr<hclang::Lexer> lexer,
-                            const hclang::Config &config)
+                             const hclang::Config &config)
     : mProgram(),mLexer(lexer),mConfig(config) {
 }
 
 std::shared_ptr<hclang::ParseTree> hclang::ParseTree::parse(const hclang::Config &config,
-                                                          std::shared_ptr<hclang::Lexer> lexer) {
+                                                            std::shared_ptr<hclang::Lexer> lexer) {
     // Look ahead token.
     auto result = std::make_shared<ParseTreeImpl>(lexer, config);
     result->parseTokens();
@@ -102,6 +102,33 @@ hclang::GR ParseTreeImpl::programStart() {
     case TT::U64i:
         return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::U64i });
         break;
+    case TT::U32i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::U32i });
+        break;
+    case TT::U16i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::U16i });
+        break;
+    case TT::U8i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::U8i });
+        break;
+    case TT::U0i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::U0i });
+        break;
+    case TT::I64i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::I64i });
+        break;
+    case TT::I32i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::I32i });
+        break;
+    case TT::I16i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::I16i });
+        break;
+    case TT::I8i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::I8i });
+        break;
+    case TT::I0i:
+        return declarationStart(hclang::typeInfo { ""sv, nullptr, hclang::HCType::I0i });
+        break;
     case TT::Eof:
     case TT::Semicolon:
         return nullptr;
@@ -116,6 +143,13 @@ hclang::decl ParseTreeImpl::declarationStart(hclang::typeInfo info) {
     getNextLookahead();
 
     switch(mLookAhead.getTokenType()) {
+    case TT::Star:
+        return declarationStart(hclang::typeInfo {
+                ""sv,
+                std::make_shared<hclang::typeInfo>(info),
+                hclang::HCType::Pointer,
+            });
+        break;
     case TT::Identifier:
         return declarationIdentifier(info, hclang::StorageClass::Default,
                                      hclang::Identifier(mLookAhead));
@@ -141,7 +175,8 @@ hclang::decl ParseTreeImpl::declarationStart(hclang::typeInfo info) {
     throw std::runtime_error("declstart");
 }
 
-hclang::decl ParseTreeImpl::declarationSpecifiers(hclang::typeInfo info, hclang::StorageClass sclass) {
+hclang::decl ParseTreeImpl::declarationSpecifiers(hclang::typeInfo info,
+                                                  hclang::StorageClass sclass) {
     getNextLookahead();
     switch(mLookAhead.getTokenType()) {
     case TT::Reg:
@@ -169,13 +204,13 @@ hclang::decl ParseTreeImpl::declarationSpecifiers(hclang::typeInfo info, hclang:
 }
 
 hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
-                                                 hclang::Identifier id) {
+                                                  hclang::Identifier id) {
     getNextLookahead();
 
     switch(mLookAhead.getTokenType()) {
     case TT::Semicolon:
         pushTokenToQueue();
-        return std::make_shared<hclang::VariableDeclaration>(id);
+        return std::make_shared<hclang::VariableDeclaration>(id, info);
         break;
     case TT::Equals:
         return declarationInitializationEqual(info, sclass, id);
@@ -189,16 +224,16 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info, hclang:
 }
 
 hclang::decl ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
-                                                          hclang::StorageClass sclass,
-                                                          hclang::Identifier id) {
+                                                           hclang::StorageClass sclass,
+                                                           hclang::Identifier id) {
     getNextLookahead();
     switch(mLookAhead.getTokenType()) {
     case TT::IntegerConstant:
     {
         auto i = std::make_shared<hclang::IntegerConstant>(mLookAhead.getText());
-        return std::make_shared<hclang::VariableInitialization>(id, i);
+        return std::make_shared<hclang::VariableInitialization>(id, info, i);
     }
-        break;
+    break;
     default:
         break;
     }

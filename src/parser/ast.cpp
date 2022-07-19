@@ -132,7 +132,41 @@ std::list<hclang::programData> hclang::VariableDeclaration::getChildren() const 
     return {};
 }
 
+// Cast.
+
+hclang::Cast::Cast(hclang::exp expr, hclang::typeInfo into, const hclang::Lexeme l)
+    : hclang::Expression(l),mIntoType(into),mExpr(expr) {
+    // TODO check that types are compatible.
+}
+
+void hclang::Cast::pprint() const {
+    printDefault();
+    fmt::print(" {}", hclang::typeToString(mIntoType.type));
+}
+
+std::string_view hclang::Cast::getClassName() const {
+    return "Cast";
+}
+
+std::list<hclang::programData> hclang::Cast::getChildren() const {
+    return { mExpr };
+}
+
+// ImplicitCast.
+
+std::string_view hclang::ImplicitCast::getClassName() const {
+    return "ImplicitCast";
+}
+
 // Variable initialization.
+
+hclang::VariableInitialization::VariableInitialization(const hclang::Identifier &id,
+                                                       hclang::typeInfo type,
+                                                       hclang::exp expr)
+    : hclang::VariableDeclaration(id, type),mRhs(nullptr) {
+    // TODO check type of expr and cast if necessary.
+    mRhs = std::make_shared<hclang::ImplicitCast>(expr, type);
+}
 
 void hclang::VariableInitialization::pprint() const {
     printDefault();
@@ -314,4 +348,66 @@ std::string_view hclang::typeToString(hclang::HCType type) {
     }
     throw std::invalid_argument(fmt::format("{} is not a valid HCType",
                                             static_cast<int>(type)));
+}
+
+std::size_t hclang::sizeofType(hclang::typeInfo t1) {
+    using hct = hclang::HCType;
+    switch(t1.type) {
+    case hct::I0i:
+    case hct::U0i:
+        return 0;
+        break;
+    case hct::I8i:
+    case hct::U8i:
+        return 1;
+        break;
+    case hct::I16i:
+    case hct::U16i:
+        return 2;
+        break;
+    case hct::I32i:
+    case hct::U32i:
+        return 4;
+        break;
+    case hct::I64i:
+    case hct::U64i:
+    case hct::Pointer:
+    case hct::F64:
+        return 8;
+        break;
+        // TODO structs, enums, etc. and pointer type
+    default:
+        break;
+    }
+    return 0;
+}
+
+bool hclang::sizeofGt(hclang::typeInfo t1, hclang::typeInfo t2) {
+    return hclang::sizeofType(t1) > hclang::sizeofType(t2);
+}
+
+bool hclang::sizeofEq(hclang::typeInfo t1, hclang::typeInfo t2) {
+    return hclang::sizeofType(t1) == hclang::sizeofType(t2);
+}
+
+bool hclang::isInteger(hclang::typeInfo t) {
+    using hct = hclang::HCType;
+    switch(t.type) {
+    case hct::I0i:
+    case hct::U0i:
+    case hct::I8i:
+    case hct::U8i:
+    case hct::I16i:
+    case hct::U16i:
+    case hct::I32i:
+    case hct::U32i:
+    case hct::I64i:
+    case hct::U64i:
+    case hct::Pointer:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
 }

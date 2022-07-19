@@ -132,7 +132,54 @@ static inline llvm::Value *makePlus(llvm::Value *lhs, llvm::Value *rhs) {
     return builder.CreateFAdd(lhs, rhs, "addtmp");
 }
 
+template<typename T>
 static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id) {
+    return nullptr;
+}
+
+template<>
+llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id) {
+    auto nId = id.getId();
+    if(symbols.count(nId)) {
+        return symbols[nId];
+    }
+
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tmpBuilder(
+        &curFn->getEntryBlock(),
+        curFn->getEntryBlock().begin()
+        );
+    llvm::StringRef name(nId.data(), nId.size());
+    auto alloca = tmpBuilder.CreateAlloca(
+        llvm::Type::getInt8Ty(context), nullptr, name
+        );
+    symbols[nId] = alloca;
+    return alloca;
+}
+
+template<>
+llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id) {
+    auto nId = id.getId();
+    if(symbols.count(nId)) {
+        return symbols[nId];
+    }
+
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tmpBuilder(
+        &curFn->getEntryBlock(),
+        curFn->getEntryBlock().begin()
+        );
+    llvm::StringRef name(nId.data(), nId.size());
+    auto alloca = tmpBuilder.CreateAlloca(
+        llvm::Type::getInt16Ty(context), nullptr, name
+        );
+    symbols[nId] = alloca;
+    return alloca;
+}
+
+
+template<>
+llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id) {
     auto nId = id.getId();
     if(symbols.count(nId)) {
         return symbols[nId];
@@ -146,6 +193,26 @@ static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id) {
     llvm::StringRef name(nId.data(), nId.size());
     auto alloca = tmpBuilder.CreateAlloca(
         llvm::Type::getInt32Ty(context), nullptr, name
+        );
+    symbols[nId] = alloca;
+    return alloca;
+}
+
+template<>
+llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id) {
+    auto nId = id.getId();
+    if(symbols.count(nId)) {
+        return symbols[nId];
+    }
+
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tmpBuilder(
+        &curFn->getEntryBlock(),
+        curFn->getEntryBlock().begin()
+        );
+    llvm::StringRef name(nId.data(), nId.size());
+    auto alloca = tmpBuilder.CreateAlloca(
+        llvm::Type::getInt64Ty(context), nullptr, name
         );
     symbols[nId] = alloca;
     return alloca;
@@ -256,11 +323,41 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 }
 
 hclang::LLV hclang::IntegerConstant::toLLVM() const {
-    return integerConstant(static_cast<std::int32_t>(mValue));
+    if(mIsSigned) {
+        return integerConstant(static_cast<std::int64_t>(mValue));
+    }
+    return integerConstant(mValue);
 }
 
 hclang::LLV hclang::VariableDeclaration::toLLVM() const {
-    return generateEntryBlockAlloca(mId);
+    using hct = hclang::HCType;
+    switch(mType.type) {
+    case hct::I8i:
+    case hct::U8i:
+        return generateEntryBlockAlloca<std::int8_t>(mId);
+        break;
+    case hct::I16i:
+    case hct::U16i:
+        return generateEntryBlockAlloca<std::int16_t>(mId);
+        break;
+    case hct::I32i:
+    case hct::U32i:
+        return generateEntryBlockAlloca<std::int32_t>(mId);
+        break;
+    case hct::I64i:
+    case hct::U64i:
+        return generateEntryBlockAlloca<std::int64_t>(mId);
+        break;
+    case hct::Class:
+        break;
+    case hct::Enum:
+        break;
+    case hct::Union:
+        break;
+    default:
+        break;
+    }
+    return nullptr;
 }
 
 hclang::LLV hclang::VariableInitialization::toLLVM() const {
@@ -285,5 +382,16 @@ hclang::LLV hclang::BinaryOperator::toLLVM() const {
 }
 
 hclang::LLV hclang::DeclarationStatement::toLLVM() const {
+    for(const auto &dec : mDecls) {
+        dec->toLLVM();
+    }
+    return nullptr;
+}
+
+hclang::LLV hclang::Cast::toLLVM() const {
+    // TODO check expression's type.
+    if(hclang::isInteger(mIntoType)) {
+        return builder.CreateIntCast(mExpr->toLLVM(), llvm::Type::getInt32Ty(context), true);
+    }
     return nullptr;
 }

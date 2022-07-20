@@ -19,34 +19,26 @@ namespace hclang {
     namespace fs = std::filesystem;
 
     class Lexeme {
-    protected:
-        std::string_view mText;
-        std::string_view mLiteralText;
-        fileposType mLineNo;
-        fileposType mEndLineNo;
-        fileposType mColNo;
-        fileposType mEndColNo;
-        TokenType mType;
     public:
-
-        Lexeme(TokenType type) : mText(""),mLiteralText(""),mLineNo(noLineNum),
-                                 mEndLineNo(noLineNum),mColNo(noLineNum),mEndColNo(noLineNum),
-                                 mType(type) {
-        }
+        Lexeme(TokenType type)
+            : mText(""),mLiteralText(""),mLineNo(noLineNum),
+              mEndLineNo(noLineNum),mColNo(noLineNum),mEndColNo(noLineNum),
+              mType(type) { }
         Lexeme(const std::string &text, TokenType type)
             : mText(text),mLiteralText(""),mLineNo(noLineNum),mEndLineNo(noLineNum),
               mColNo(noLineNum),mEndColNo(noLineNum),
-              mType(type) {
-        }
+              mType(type) { }
         Lexeme(std::string_view text, TokenType type,
                fileposType lineNo, fileposType colNo, fileposType endLineNo,
                fileposType endColNo)
             : mText(text),mLiteralText(""),mLineNo(lineNo),mEndLineNo(endLineNo),
-              mColNo(colNo),mEndColNo(endColNo),mType(type) {
-        }
+              mColNo(colNo),mEndColNo(endColNo),mType(type) { }
         Lexeme() : mText(""),mLiteralText(""),mLineNo(noLineNum),mColNo(noLineNum),
-                   mType(TokenType::Space) {
-        }
+                   mType(TokenType::Space) { }
+        Lexeme(const Lexeme &l)
+            : mText(l.mText),mLiteralText(l.mLiteralText),mLineNo(l.mLineNo),
+              mEndLineNo(l.mEndLineNo),mColNo(l.mColNo),mEndColNo(l.mEndColNo),
+              mType(l.mType) { }
         virtual ~Lexeme() = default;
 
         inline lexemeLen getTextLength() const {
@@ -73,10 +65,15 @@ namespace hclang {
             return mLineNo;
         }
 
-        Lexeme operator=(const Lexeme &other) {
+        Lexeme &operator=(const Lexeme &other) {
             if(this != &other) {
-                mType = other.mType;
                 mText = other.mText;
+                mLiteralText = other.mLiteralText;
+                mLineNo = other.mLineNo;
+                mEndLineNo = other.mEndLineNo;
+                mColNo = other.mColNo;
+                mEndColNo = other.mEndColNo;
+                mType = other.mType;
             }
             return *this;
         }
@@ -104,6 +101,27 @@ namespace hclang {
         inline fileposType getEndColNumber() const {
             return mEndColNo;
         }
+
+        inline Lexeme operator|(const Lexeme &l) {
+            Lexeme newL(*this);
+            newL.mEndColNo = l.mEndColNo;
+            newL.mEndLineNo = l.mEndLineNo;
+            return newL;
+        }
+
+        inline Lexeme &operator|=(const Lexeme &l) {
+            mEndColNo = l.mEndColNo;
+            mEndLineNo = l.mEndLineNo;
+            return *this;
+        }
+    protected:
+        std::string_view mText;
+        std::string_view mLiteralText;
+        fileposType mLineNo;
+        fileposType mEndLineNo;
+        fileposType mColNo;
+        fileposType mEndColNo;
+        TokenType mType;
     };
 
     class Lexer {
@@ -168,9 +186,8 @@ namespace fmt {
                 return fmt::format_to(ctx.out(), "{}",
                                       fmt::styled('?', fg(fmt::color::gold)));
             }
-            return
-                fmt::format_to(ctx.out(), "{}",
-                               fmt::styled(fp.pos, fg(fmt::color::gold)));
+            return fmt::format_to(ctx.out(), "{}",
+                                  fmt::styled(fp.pos, fg(fmt::color::gold)));
         }
     };
 }
@@ -189,8 +206,7 @@ namespace fmt {
                                __fileposPrinter{l.getStartLineNumber()},
                                __fileposPrinter{l.getEndLineNumber()},
                                __fileposPrinter{l.getStartColNumber()},
-                               __fileposPrinter{l.getEndColNumber()}
-                    );
+                               __fileposPrinter{l.getEndColNumber()});
         }
     };
 }

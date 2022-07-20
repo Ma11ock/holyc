@@ -4,7 +4,7 @@
 #include "parser.hpp"
 #include "ast.hpp"
 
-#include "../lexer/token.hpp"
+#include "../lexer/lexer.hpp"
 
 #include <list>
 #include <variant>
@@ -45,6 +45,12 @@ protected:
                                                 hclang::Identifier id);
 
 };
+
+#define startret(funcall) {                     \
+        auto result = funcall;                  \
+        result->setLexeme(startLexeme);         \
+        return result;                          \
+    }
 
 static bool isUnary(hclang::Operator op);
 static bool isControl(hclang::Operator op);
@@ -134,13 +140,16 @@ hclang::GR ParseTreeImpl::programStart() {
         return nullptr;
         break;
     default:
-        throw std::runtime_error("Error");
+        throw std::runtime_error(
+            fmt::format("Error got a {}: {}",
+                        hclang::stringifyTokenType(mLookAhead.getTokenType()),
+                        mLookAhead.getText()));
         break;
     }
 }
 
 hclang::decl ParseTreeImpl::declarationStart(hclang::typeInfo info) {
-    getNextLookahead();
+    auto startLexeme = getNextLookahead();
 
     switch(mLookAhead.getTokenType()) {
     case TT::Star:
@@ -151,23 +160,23 @@ hclang::decl ParseTreeImpl::declarationStart(hclang::typeInfo info) {
             });
         break;
     case TT::Identifier:
-        return declarationIdentifier(info, hclang::StorageClass::Default,
-                                     hclang::Identifier(mLookAhead));
+        startret(declarationIdentifier(info, hclang::StorageClass::Default,
+                                       hclang::Identifier(mLookAhead)))
         break;
     case TT::Reg:
-        return declarationSpecifiers(info, hclang::StorageClass::Reg);
+        startret(declarationSpecifiers(info, hclang::StorageClass::Reg))
         break;
     case TT::Noreg:
-        return declarationSpecifiers(info, hclang::StorageClass::Noreg);
+        startret(declarationSpecifiers(info, hclang::StorageClass::Noreg))
         break;
     case TT::Public:
-        return declarationSpecifiers(info, hclang::StorageClass::Public);
+        startret(declarationSpecifiers(info, hclang::StorageClass::Public))
         break;
     case TT::Extern:
-        return declarationSpecifiers(info, hclang::StorageClass::Extern);
+        startret(declarationSpecifiers(info, hclang::StorageClass::Extern))
         break;
     case TT::_Extern:
-        return declarationSpecifiers(info, hclang::StorageClass::_Extern);
+        startret(declarationSpecifiers(info, hclang::StorageClass::_Extern))
         break;
     default:
         break;
@@ -203,7 +212,8 @@ hclang::decl ParseTreeImpl::declarationSpecifiers(hclang::typeInfo info,
     throw std::runtime_error("declspec");
 }
 
-hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
+hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
+                                                  hclang::StorageClass sclass,
                                                   hclang::Identifier id) {
     getNextLookahead();
 
@@ -230,7 +240,7 @@ hclang::decl ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info
     switch(mLookAhead.getTokenType()) {
     case TT::IntegerConstant:
     {
-        auto i = std::make_shared<hclang::IntegerConstant>(mLookAhead.getText());
+        auto i = std::make_shared<hclang::IntegerConstant>(mLookAhead);
         return std::make_shared<hclang::VariableInitialization>(id, info, i);
     }
     break;

@@ -7,7 +7,7 @@
 #include <vector>
 #include <memory>
 #include "ast.hpp"
-#include "../lexer/token.hpp"
+#include "../lexer/lexer.hpp"
 #include "../config.hpp"
 
 namespace hclang {

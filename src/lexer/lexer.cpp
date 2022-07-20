@@ -1,4 +1,4 @@
-#include "token.hpp"
+#include "lexer.hpp"
 
 #include <string>
 #include <regex>
@@ -415,7 +415,7 @@ hclang::Lexeme hclang::Lexer::pull() {
         // EOF
         Token("^$", TT::Eof),
         // Whitespace, comments, etc.
-        Token("^\\s+|\\/\\/.*|\\/\\/*(\\S\\s)*\\*\\/", TT::Space),
+        Token("^\\s+|^/\\*(?:[\\s\\S])*?\\*/|^//.*", TT::Space),
         // Keywords.
         Token("^\\{", TT::LCurlyBracket),
         Token("^\\}", TT::RCurlyBracket),
@@ -505,19 +505,20 @@ hclang::Lexeme hclang::Lexer::pull() {
     // Get matched tokens and store them in a lexeme.
     std::array<hclang::Lexeme, TOKENS.size()> matchedTokens;
     std::size_t i = 0;
-    auto curLine = mLineOffsets[mCurLineNoPtr];
+    auto curLine = mCurLineNoPtr;
     for(const auto &token : TOKENS) {
         auto [matched, match] = token.match(sourcePtr);
         if(matched) {
-            auto endPos = mCurPos + match.size();
-            auto tmpLinePtr = mCurLineNoPtr;
-            while(mLineOffsets[tmpLinePtr + 1] < endPos) {
-                tmpLinePtr++;
+            auto tokSize = match.size();
+            auto endPos = mCurPos + tokSize;
+            auto endLineNo = mCurLineNoPtr;
+            while(mLineOffsets[endLineNo + 1] < endPos) {
+                endLineNo++;
             }
-            fileposType endLineNo = mLineOffsets[tmpLinePtr];
+            auto endLineCol = (mCurPos - mLineOffsets[endLineNo]) + tokSize;
             matchedTokens[i++] = hclang::Lexeme(match, token.getTokenType(),
-                                               curLine, mCurPos - curLine,
-                                               endLineNo, endPos - endLineNo);
+                                                curLine, mCurPos,
+                                                endLineNo, endLineCol);
         }
     }
 
@@ -531,8 +532,8 @@ hclang::Lexeme hclang::Lexer::pull() {
     // defined first.
 
     const auto &maxLexeme = *std::max_element(matchedTokens.begin(), matchedTokens.end(),
-                                              [=] (const hclang::Lexeme &l1,
-                                                   const hclang::Lexeme &l2) -> bool {
+                                              [=](const hclang::Lexeme &l1,
+                                                  const hclang::Lexeme &l2) -> bool {
                                                   return l1.getTextLength() < l2.getTextLength();
                                               });
     auto lexemeLen = maxLexeme.getTextLength();

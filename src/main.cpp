@@ -6,7 +6,7 @@
 #include <memory>
 #include <cstdlib>
 #include "hclang.hpp"
-#include "lexer/token.hpp"
+#include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 #include "config.hpp"
 #include "log.hpp"

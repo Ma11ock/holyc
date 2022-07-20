@@ -271,6 +271,7 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 
     if(mConfig.shouldEmitLLVM()) {
         module->print(llvm::outs(), nullptr);
+        return;
     }
 
     if(mConfig.syntaxOnly()) {

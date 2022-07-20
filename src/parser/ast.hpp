@@ -17,7 +17,7 @@
 
 #include "type.hpp"
 #include "../hclang.hpp"
-#include "../lexer/token.hpp"
+#include "../lexer/lexer.hpp"
 #include "../util.hpp"
 
 namespace llvm {
@@ -244,6 +244,12 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<std::shared_ptr<GrammarRule>> getChildren() const = 0;
+
+        inline const Lexeme &getLexemeConst() {
+            return mLexeme;
+        }
+
+        virtual void setLexeme(const Lexeme &l);
     protected:
         /// Lexeme that began this production rule.
         hclang::Lexeme mLexeme;
@@ -477,13 +483,15 @@ namespace hclang {
          * @param isSigned True if constant is signed, false if unsigned.
          */
         IntegerConstant(const Lexeme &source, bool isSigned = false) :
-            IntegerConstant(source.getText(), isSigned) {}
+            IntegerConstant(source.getText(), isSigned, source) {}
         /**
          * Value constructor. Derive integer constant from source.
          * @param source Source that of the integer constant.
          * @param isSigned True if constant is signed, false if unsigned.
+         * @param l Lexeme of the integer constant.
          */
-        IntegerConstant(std::string_view source, bool isSigned = false);
+        IntegerConstant(std::string_view source, bool isSigned = false,
+                        const Lexeme &l = Lexeme());
         /**
          * Set the signedness of the integer constant.
          * @param isSigned True if constant is signed, false if not.
@@ -581,6 +589,10 @@ namespace hclang {
     public:
         /// Defaulted constructor.
         Declaration() = default;
+        /**
+         * Value constructor. Set the lexeme.
+         */
+        Declaration(const Lexeme &l) : GrammarRule(l) { }
         /// Destructor. Default.
         virtual ~Declaration() = default;
     };
@@ -599,13 +611,14 @@ namespace hclang {
         /**
          * Value constructor. Set the ID of the declared variable.
          */
-        VariableDeclaration(const Identifier &id, typeInfo type)
-            : mId(id),mType(type) {}
+        VariableDeclaration(const Identifier &id, typeInfo type,
+                            const Lexeme &l = Lexeme())
+            : Declaration(l),mId(id),mType(type) { }
         /**
          * Value constructor. Set the lexeme.
          * @param lexeme Value to set `lexeme` to.
          */
-        VariableDeclaration(const Lexeme &lexeme, typeInfo type)
+        VariableDeclaration(typeInfo type, const Lexeme &lexeme)
             : mId(lexeme),mType(type) {}
         /// Destructor. Default.
         virtual ~VariableDeclaration() = default;
@@ -653,6 +666,8 @@ namespace hclang {
         VariableInitialization(const Identifier &id, typeInfo type, exp expr);
         /// Destructor. Default.
         virtual ~VariableInitialization() = default;
+
+        virtual void setLexeme(const Lexeme &l);
         /**
          * Get class name.
          * @return Class name.

@@ -28,6 +28,9 @@ namespace hclang {
         inline bool wasHelp() const {
             return mHelp;
         }
+        inline bool isCompilationUnit() const {
+            return mCompilationUnit;
+        }
 
     protected:
         std::vector<std::filesystem::path> mSourcePaths;
@@ -36,6 +39,7 @@ namespace hclang {
         bool mEmitLLVM;
         bool mSyntaxOnly;
         bool mHelp;
+        bool mCompilationUnit;
     };
 }
 

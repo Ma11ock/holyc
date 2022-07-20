@@ -24,6 +24,7 @@ OPTIONS:
   -fsyntax-only    Do not compile, just verify validity of input file (emits
                    warnings and errors)
   -v               Verbose. Enables logging
+  -c               Compile, but do not link
 
 HolyC was created by Terry A. Davis.
 
@@ -46,7 +47,7 @@ std::string_view getNextArg<std::string_view>(const argsType &args,
 }
 
 hclang::Config::Config(const argsType &args)
-    : mSourcePaths({}),mOutputPath("a.out"),mDumpAst(false),mEmitLLVM(false),
+    : mSourcePaths({}),mOutputPath(),mDumpAst(false),mEmitLLVM(false),
       mSyntaxOnly(false) {
 
     for(argsLenType i = 0; i < args.size(); i++) {
@@ -65,10 +66,13 @@ hclang::Config::Config(const argsType &args)
         } else if(arg == "-help") {
             mHelp = true;
             fmt::print("{}", HELP_STR);
+        } else if(arg == "-c") {
+            mCompilationUnit = true;
         } else { // No flag.
             mSourcePaths.push_back(arg);
         }
     }
+
 
     if(mSourcePaths.empty()) {
         throw std::invalid_argument("no input files");

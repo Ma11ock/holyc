@@ -24,6 +24,10 @@ void hclang::GrammarRule::pprint() const {
     fmt::print("0x{:x} {}", reinterpret_cast<std::size_t>(this), mLexeme);
 }
 
+void hclang::GrammarRule::setLexeme(const hclang::Lexeme &l) {
+    mLexeme = l;
+}
+
 // IntegerConstant.
 
 hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::HCType type,
@@ -48,8 +52,10 @@ hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::HCType typ
     }
 }
 
-hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned)
-    : mValue(0),mIsSigned(isSigned) {
+hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
+                                         const hclang::Lexeme &l)
+    : Constant(l),mValue(0),mIsSigned(isSigned) {
+    // Signed constant.
     if(isSigned) {
         std::int64_t value = 0;
         auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value);
@@ -74,6 +80,7 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned)
         mValue = static_cast<std::uint64_t>(value);
         return;
     }
+    // Unsigned constant.
     auto [ptr, ec] = std::from_chars(source.begin(), source.end(), mValue);
 
     if(ptr != source.end()) {
@@ -161,6 +168,13 @@ hclang::VariableInitialization::VariableInitialization(const hclang::Identifier 
     : hclang::VariableDeclaration(id, type),mRhs(nullptr) {
     // TODO check type of expr and cast if necessary.
     mRhs = std::make_shared<hclang::ImplicitCast>(expr, type);
+}
+
+void hclang::VariableInitialization::setLexeme(const hclang::Lexeme &l) {
+    mLexeme = l;
+    if(mRhs) {
+        mLexeme |= mRhs->getLexemeConst();
+    }
 }
 
 void hclang::VariableInitialization::pprint() const {

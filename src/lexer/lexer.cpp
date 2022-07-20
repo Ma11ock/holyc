@@ -351,6 +351,8 @@ std::string_view hclang::stringifyTokenType(TokenType type) {
     case TT::Space:
         return "Space";
         break;
+    default:
+        break;
     }
     throw std::invalid_argument(fmt::format("Invalid token: (integer){}",
                                             static_cast<std::uint32_t>(type)));
@@ -503,46 +505,34 @@ hclang::Lexeme hclang::Lexer::pull() {
                                       mSource.size() - mCurPos);
 
     // Get matched tokens and store them in a lexeme.
-    std::array<hclang::Lexeme, TOKENS.size()> matchedTokens;
-    std::size_t i = 0;
+    hclang::Lexeme maxLexeme;
     auto curLine = mCurLineNoPtr;
     for(const auto &token : TOKENS) {
         auto [matched, match] = token.match(sourcePtr);
-        if(matched) {
-            auto tokSize = match.size();
+        auto tokSize = match.size();
+        if(matched && tokSize > maxLexeme.getTextLength()) {
             auto endPos = mCurPos + tokSize;
             auto endLineNo = mCurLineNoPtr;
             while(mLineOffsets[endLineNo + 1] < endPos) {
                 endLineNo++;
             }
             auto endLineCol = (mCurPos - mLineOffsets[endLineNo]) + tokSize;
-            matchedTokens[i++] = hclang::Lexeme(match, token.getTokenType(),
-                                                curLine, mCurPos,
-                                                endLineNo, endLineCol);
+            maxLexeme = hclang::Lexeme(match, token.getTokenType(),
+                                       curLine, mCurPos,
+                                       endLineNo, endLineCol);
         }
     }
 
     // Make sure there was a match.
-    if(i == 0) {
+    if(maxLexeme.getText().empty()) {
         throw std::invalid_argument("No match");
     }
 
-    // Choose which token to use. The token that ate the most characters should be
-    // chosen. If multiple tokens ate the same number of characters, choose the one
-    // defined first.
-
-    const auto &maxLexeme = *std::max_element(matchedTokens.begin(), matchedTokens.end(),
-                                              [=](const hclang::Lexeme &l1,
-                                                  const hclang::Lexeme &l2) -> bool {
-                                                  return l1.getTextLength() < l2.getTextLength();
-                                              });
-    auto lexemeLen = maxLexeme.getTextLength();
-
     // Increment current line number (if necessary).
+    mCurPos += maxLexeme.getTextLength();
     while(mLineOffsets[mCurLineNoPtr + 1] < mCurPos) {
         mCurLineNoPtr++;
     }
-    mCurPos += lexemeLen;
 
     if(maxLexeme == TT::Space)
         return pull();

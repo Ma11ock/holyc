@@ -165,9 +165,7 @@ std::string_view hclang::ImplicitCast::getClassName() const {
 hclang::VariableInitialization::VariableInitialization(const hclang::Identifier &id,
                                                        hclang::typeInfo type,
                                                        hclang::exp expr)
-    : hclang::VariableDeclaration(id, type),mRhs(nullptr) {
-    // TODO check type of expr and cast if necessary.
-    mRhs = std::make_shared<hclang::ImplicitCast>(expr, type);
+    : hclang::VariableDeclaration(id, type),mRhs(expr) {
 }
 
 void hclang::VariableInitialization::setLexeme(const hclang::Lexeme &l) {

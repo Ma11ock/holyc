@@ -20,9 +20,10 @@ int main(int argc, const char * const * argv) {
         }
 
         for(const auto &sourcePath : programConfig.getSourcePaths()) {
-            auto parser = hclang::ParseTree::parse(programConfig,
-                                                  std::make_shared<hclang::Lexer>(sourcePath,
-                                                                                 programConfig));
+            auto parser = hclang::ParseTree::parseSyntax(programConfig,
+                                                         std::make_shared<hclang::Lexer>(sourcePath,
+                                                                                         programConfig));
+            parser->parseSemantics();
             parser->compile(programConfig.getOutputPath());
         }
     } catch (std::exception &e) {

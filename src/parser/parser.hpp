@@ -14,10 +14,11 @@ namespace hclang {
     namespace fs = std::filesystem;
     class ParseTree {
     public:
-        static std::shared_ptr<ParseTree> parse(const hclang::Config &config,
-                                                std::shared_ptr<hclang::Lexer> lexer);
+        static std::shared_ptr<ParseTree> parseSyntax(const hclang::Config &config,
+                                                      std::shared_ptr<hclang::Lexer> lexer);
         virtual ~ParseTree() = default;
         void compile(const fs::path &path = "") const;
+        virtual void parseSemantics() = 0;
     protected:
         Program mProgram;
         std::shared_ptr<hclang::Lexer> mLexer;

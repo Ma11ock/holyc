@@ -100,6 +100,8 @@ namespace hclang {
      * and structs.
      */
     enum class HCType {
+        Typeless,
+        Invalid,
         U0i,
         U8i,
         U16i,

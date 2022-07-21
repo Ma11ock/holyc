@@ -17,15 +17,11 @@ using namespace std::string_view_literals;
 namespace fs = std::filesystem;
 
 class Token {
-protected:
-    std::regex mRegex;
-    hclang::TokenType mType;
 public:
-    Token(const std::string &regex, hclang::TokenType type) :
-        mRegex(regex,
-               std::regex_constants::icase | std::regex_constants::ECMAScript),
-        mType(type) {
-    }
+    Token(const std::string &regex, hclang::TokenType type,
+          bool canBeMultiline = false)
+        : mRegex(regex, std::regex_constants::icase | std::regex_constants::ECMAScript),
+        mType(type),mCanBeMultiline(canBeMultiline) { }
     ~Token() = default;
 
    /**
@@ -64,6 +60,14 @@ public:
             break;
         }
     }
+
+    inline bool maybeMultiline() const {
+        return mCanBeMultiline;
+    }
+protected:
+    std::regex mRegex;
+    hclang::TokenType mType;
+    bool mCanBeMultiline;
 };
 
 
@@ -383,7 +387,7 @@ std::string hclang::Lexeme::stringify() const {
 // Lexer implementation.
 
 hclang::Lexer::Lexer(const fs::path &path, const hclang::Config &config)
-    : mSource(""),mSourcePath(path),mLineOffsets({}),mCurLineNoPtr(0),mCurPos(0),
+    : mSource(""),mSourcePath(path),mCurLine(1),mCurLineOffset(0),mCurPos(0),
       mConfig(config) {
     std::ifstream sourceFile(path);
     if(!sourceFile) {
@@ -393,23 +397,6 @@ hclang::Lexer::Lexer(const fs::path &path, const hclang::Config &config)
     std::stringstream buffer;
     buffer << sourceFile.rdbuf();
     mSource = buffer.str();
-
-    // Line offset information.
-    const static std::regex newlineRegex("\\n");
-    using namespace std::literals;
-    using svmatch = std::match_results<std::string_view::const_iterator>;
-    svmatch sm;
-    std::string_view sourcePtr = mSource;
-    std::regex_search(sourcePtr.cbegin(), sourcePtr.cend(), sm, newlineRegex);
-
-    mLineOffsets.resize(sm.size() + 1);
-
-    for(std::size_t i = 0; i < sm.size(); i++) {
-        mLineOffsets[i] = sm.position(i);
-    }
-    // Dummy line. Trick that makes calculating line numbers from its relative
-    // position to the read head easier.
-    mLineOffsets.back() = std::numeric_limits<fileposType>::max();
 }
 
 hclang::Lexeme hclang::Lexer::pull() {
@@ -417,13 +404,13 @@ hclang::Lexeme hclang::Lexer::pull() {
         // EOF
         Token("^$", TT::Eof),
         // Whitespace, comments, etc.
-        Token("^\\s+|^/\\*(?:[\\s\\S])*?\\*/|^//.*", TT::Space),
+        Token("^\\s+|^/\\*(?:[\\s\\S])*?\\*/|^//.*", TT::Space, true),
         // Keywords.
         Token("^\\{", TT::LCurlyBracket),
         Token("^\\}", TT::RCurlyBracket),
         Token("^if", TT::If),
         Token("^else", TT::Else),
-        Token("^else\\s+if", TT::ElseIf),
+        Token("^else\\s+if", TT::ElseIf, true),
         Token("^class", TT::Class),
         Token("^while", TT::While),
         Token("^for", TT::For),
@@ -491,7 +478,7 @@ hclang::Lexeme hclang::Lexer::pull() {
         Token("^\\&\\=", TT::AndEqual),
         // Constants.
         Token("^'.'", TT::CharacterConstant),
-        Token("^\".*\"", TT::StringConstant),
+        Token("^\".*\"", TT::StringConstant), // Maybe multiline?
         Token("^[-0-9]+", TT::IntegerConstant),
         Token("^[-.0-9]+", TT::FloatConstant),
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
@@ -506,20 +493,29 @@ hclang::Lexeme hclang::Lexer::pull() {
 
     // Get matched tokens and store them in a lexeme.
     hclang::Lexeme maxLexeme;
-    auto curLine = mCurLineNoPtr;
+    auto maxEndLineOffset = mCurLineOffset;
     for(const auto &token : TOKENS) {
         auto [matched, match] = token.match(sourcePtr);
         auto tokSize = match.size();
         if(matched && tokSize > maxLexeme.getTextLength()) {
             auto endPos = mCurPos + tokSize;
-            auto endLineNo = mCurLineNoPtr;
-            while(mLineOffsets[endLineNo + 1] < endPos) {
-                endLineNo++;
+            auto endLineNo = mCurLine;
+            if(token.maybeMultiline()) {
+                // Check matched lexeme for any newline characters.
+                // Update the line offset information if a newline is detected.
+                maxEndLineOffset = mCurPos;
+                for(auto i = match.begin();
+                    (i = std::find(i, match.end(), '\n')) != match.end(); i++) {
+                    endLineNo++;
+                    maxEndLineOffset += (i - match.begin()) + 1;
+                }
+                if(maxEndLineOffset == mCurPos) {
+                    maxEndLineOffset = mCurLineOffset;
+                }
             }
-            auto endLineCol = (mCurPos - mLineOffsets[endLineNo]) + tokSize;
             maxLexeme = hclang::Lexeme(match, token.getTokenType(),
-                                       curLine, mCurPos,
-                                       endLineNo, endLineCol);
+                                       mCurLine, mCurPos - mCurLineOffset,
+                                       endLineNo, endPos - maxEndLineOffset);
         }
     }
 
@@ -528,11 +524,9 @@ hclang::Lexeme hclang::Lexer::pull() {
         throw std::invalid_argument("No match");
     }
 
-    // Increment current line number (if necessary).
+    mCurLine = maxLexeme.getEndLineNumber();
+    mCurLineOffset = maxEndLineOffset;
     mCurPos += maxLexeme.getTextLength();
-    while(mLineOffsets[mCurLineNoPtr + 1] < mCurPos) {
-        mCurLineNoPtr++;
-    }
 
     if(maxLexeme == TT::Space)
         return pull();

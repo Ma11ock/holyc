@@ -132,8 +132,8 @@ namespace hclang {
     protected:
         std::string mSource;
         fs::path mSourcePath;
-        std::vector<fileposType> mLineOffsets;
-        std::vector<fileposType>::size_type mCurLineNoPtr;
+        fileposType mCurLine;
+        fileposType mCurLineOffset;
         fileposType mCurPos;
         const Config &mConfig;
     };

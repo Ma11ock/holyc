@@ -8,6 +8,7 @@
 #include <fmt/color.h>
 #include <regex>
 #include <algorithm>
+#include <limits>
 #include "../util.hpp"
 
 using TT = hclang::TokenType;
@@ -53,12 +54,12 @@ hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::HCType typ
 }
 
 hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
-                                         const hclang::Lexeme &l)
+                                         int base, const hclang::Lexeme &l)
     : Constant(l),mValue(0),mIsSigned(isSigned) {
     // Signed constant.
     if(isSigned) {
         std::int64_t value = 0;
-        auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value);
+        auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value, base);
 
         if(ptr != source.end()) {
             throw std::invalid_argument(fmt::format("{} is not a valid int64",
@@ -81,7 +82,7 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
         return;
     }
     // Unsigned constant.
-    auto [ptr, ec] = std::from_chars(source.begin(), source.end(), mValue);
+    auto [ptr, ec] = std::from_chars(source.begin(), source.end(), mValue, base);
 
     if(ptr != source.end()) {
         throw std::invalid_argument(fmt::format("{} is not a valid int64",
@@ -291,7 +292,11 @@ std::string_view hclang::DeclarationStatement::getClassName() const {
 }
 
 std::list<hclang::programData> hclang::DeclarationStatement::getChildren() const {
-    return {};
+    std::list<hclang::programData> result;
+    for(const auto i : mDecls) {
+        result.push_front(i);
+    }
+    return result;
 }
 
 // Functions.
@@ -417,4 +422,70 @@ bool hclang::isInteger(hclang::typeInfo t) {
         break;
     }
     return false;
+}
+
+int hclang::getPrecedence(hclang::Operator op) {
+    switch(op) {
+    case O::Assignment:
+    case O::LeftshiftAssignment:
+    case O::RightshiftAssignment:
+    case O::TimesAssignment:
+    case O::DivideAssignment:
+    case O::PlusAssignment:
+    case O::MinusAssignment:
+    case O::AndAssignment:
+    case O::OrAssignment:
+    case O::XorAssignment:
+        return 0;
+        break;
+    case O::LogicalOr:
+        return 1;
+        break;
+    // case O::DoubleCaret: TODO unknown operator (probably logical Xor?)
+    //     return 2;
+    //     break;
+    case O::LogicalAnd:
+        return 3;
+        break;
+    case O::Equals:
+    case O::NotEquals:
+        return 4;
+        break;
+    case O::LessThan:
+    case O::GreaterThan:
+    case O::LessThanEqual:
+    case O::GreaterThanEqual:
+        return 5;
+        break;
+    case O::Add:
+    case O::Subtract:
+        return 6;
+        break;
+    case O::BitwiseOr:
+        return 7;
+        break;
+    case O::BitwiseXor:
+        return 8;
+        break;
+    case O::BitwiseAnd:
+        return 9;
+        break;
+    case O::Multiply:
+    case O::Divide:
+    case O::Modulo:
+        return 10;
+        break;
+    case O::Power:
+    case O::Leftshift:
+    case O::Rightshift:
+        return 11;
+        break;
+    case O::Leftparen:
+    case O::Rightparen:
+        return std::numeric_limits<int>::max();
+        break;
+    default:
+        break;
+    }
+    return -1;
 }

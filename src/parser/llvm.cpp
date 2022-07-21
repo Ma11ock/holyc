@@ -16,6 +16,9 @@
 #include <string_view>
 #include <map>
 
+// Aliases.
+
+using O = hclang::Operator;
 
 // Static globals.
 
@@ -91,6 +94,26 @@ public:
 static BlockStack blockStack;
 
 // Static functions.
+
+static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
+                                    hclang::Operator op) {
+    if(!lhs || !rhs) {
+        return nullptr;
+    }
+
+    switch(op) {
+    case O::Multiply:
+        return builder.CreateMul(lhs, rhs, "multmp");
+        break;
+    case O::Divide:
+        return builder.CreateUDiv(lhs, rhs, "multmp");
+        break;
+    default:
+        break;
+    }
+
+    return nullptr;
+}
 
 static inline llvm::Value *f64Constant(double val) {
     return llvm::ConstantFP::get(context, llvm::APFloat(val));
@@ -379,7 +402,7 @@ hclang::LLV hclang::Program::toLLVM() const {
 }
 
 hclang::LLV hclang::BinaryOperator::toLLVM() const {
-    return nullptr;
+    return binaryOperation(mLhs->toLLVM(), mRhs->toLLVM(), mOp);
 }
 
 hclang::LLV hclang::DeclarationStatement::toLLVM() const {

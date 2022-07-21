@@ -72,7 +72,7 @@ namespace hclang {
         /// Add (binary).
         Add,
         /// Minus (binary).
-        Minus,
+        Subtract,
         /// Multiply (binary).
         Multiply,
         /// Divide (binary).
@@ -80,19 +80,41 @@ namespace hclang {
         /// % (binary).
         Modulo,
         /// << (binary).
-        Lshift,
+        Leftshift,
         /// >> (binary).
-        Rshift,
+        Rightshift,
         /// & (binary).
         BitwiseAnd,
         /// | (binary).
         BitwiseOr,
+        /// ` (binary [right associative!]).
+        Power,
         //// ^ (binary).
         BitwiseXor,
+        /// = (binary (assignment), lhs not expression).
+        Assignment,
+        /// <<= (binary (assignment), lhs not expression).
+        LeftshiftAssignment,
+        /// >>= (binary (assignment), lhs not expression).
+        RightshiftAssignment,
+        /// *= (binary (assignment), lhs not expression).
+        TimesAssignment,
+        /// /= (binary (assignment), lhs not expression).
+        DivideAssignment,
+        /// &= (binary (assignment), lhs not expression).
+        AndAssignment,
+        /// |= (binary (assignment), lhs not expression).
+        OrAssignment,
+        /// ^= (binary (assignment), lhs not expression).
+        XorAssignment,
+        /// += (binary (assignment), lhs not expression).
+        PlusAssignment,
+        /// -= (binary (assignment), lhs not expression).
+        MinusAssignment,
         /// Lparen (control).
-        Lparen,
+        Leftparen,
         /// Rparen (control).
-        Rparen,
+        Rightparen,
     };
 
     /**
@@ -485,7 +507,10 @@ namespace hclang {
          * @param isSigned True if constant is signed, false if unsigned.
          */
         IntegerConstant(const Lexeme &source, bool isSigned = false) :
-            IntegerConstant(source.getText(), isSigned, source) {}
+            IntegerConstant(source.getText(), isSigned,
+                            (source == hclang::TokenType::IntegerConstant) ? 10 :
+                            ((source == hclang::TokenType::HexadecimalConstant) ? 16 : 8),
+                            source) {}
         /**
          * Value constructor. Derive integer constant from source.
          * @param source Source that of the integer constant.
@@ -493,7 +518,7 @@ namespace hclang {
          * @param l Lexeme of the integer constant.
          */
         IntegerConstant(std::string_view source, bool isSigned = false,
-                        const Lexeme &l = Lexeme());
+                        int base = 10, const Lexeme &l = Lexeme());
         /**
          * Set the signedness of the integer constant.
          * @param isSigned True if constant is signed, false if not.
@@ -693,7 +718,7 @@ namespace hclang {
     };
 
     /**
-     * Alias to shared ponter to a `VariableInitialization`.
+     * Alias to shared pointer to a `VariableInitialization`.
      * @see VariableInitialization.
      */
     using varInit = std::shared_ptr<VariableInitialization>;
@@ -708,9 +733,15 @@ namespace hclang {
         /// Destructor. Default.
         virtual ~DeclarationStatement() = default;
         /**
+         * Value constructor. Set the first declaration.
+         * @param dec The first declaration of the declaration statement rule.
+         */
+        DeclarationStatement(decl dec) : Statement(dec->getLexemeConst()),
+                                         mDecls({dec}) {}
+        /**
          * Add a variable declaration object.
          */
-        void push(varDecl decl);
+        inline void push(decl d) { mDecls.push_back(d); }
         /**
          * Get class name.
          * @return Class name.
@@ -729,9 +760,15 @@ namespace hclang {
          */
         virtual std::list<programData> getChildren() const;
     protected:
-        /// List of variable declarations that make this statement.
-        std::list<varDecl> mDecls;
+        /// List of declarations that make this statement.
+        std::list<decl> mDecls;
     };
+
+    /**
+     * Alias to shared pointer to `DeclarationStatement`.
+     * @see DeclarationStatement
+     */
+    using declStmnt = std::shared_ptr<DeclarationStatement>;
 
     /**
      * Represents the whole file, or compilation unit.
@@ -812,6 +849,12 @@ namespace hclang {
      * @return true if `t1` is an integer type (including pointer).
      */
     bool isInteger(typeInfo t1);
+
+    /**
+     * Get the operator precedence of an operator.
+     * @param op Operator to get precedence of.
+     */
+    int getPrecedence(Operator op);
 }
 
 #endif /* SLANG_AST_HPP */

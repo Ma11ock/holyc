@@ -3,6 +3,7 @@
 
 #include <fmt/core.h>
 #include <cstdint>
+#include <string>
 
 #ifdef __unix__
 #include <cerrno>
@@ -32,6 +33,10 @@ namespace util {
     void oracle(T &output) {
         T value;
         output = value;
+    }
+
+    inline bool prefix(std::string_view s, std::string_view prefix) {
+        return s.rfind(prefix, 0) == 0;
     }
 }
 

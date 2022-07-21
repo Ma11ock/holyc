@@ -229,6 +229,8 @@ hclang::decl ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info
     getNextLookahead();
     switch(mLookAhead.getTokenType()) {
     case TT::IntegerConstant:
+    case TT::HexadecimalConstant:
+    case TT::OctalConstant:
         pushTokenToQueue();
         return std::make_shared<hclang::VariableInitialization>(id, info,
                                                                 expressionStart(TT::Semicolon, true));

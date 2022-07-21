@@ -57,6 +57,9 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
                                          int base, const hclang::Lexeme &l)
     : Constant(l),mValue(0),mIsSigned(isSigned) {
     // Signed constant.
+    if(base == 16 && (util::prefix(source, "0x") || util::prefix(source, "0X"))) {
+        source = std::string_view(source.data() + 2, source.size() - 2);
+    }
     if(isSigned) {
         std::int64_t value = 0;
         auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value, base);

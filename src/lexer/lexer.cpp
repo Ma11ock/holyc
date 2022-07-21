@@ -479,9 +479,9 @@ hclang::Lexeme hclang::Lexer::pull() {
         // Constants.
         Token("^'.'", TT::CharacterConstant),
         Token("^\".*\"", TT::StringConstant), // Maybe multiline?
-        Token("^[-0-9]+", TT::IntegerConstant),
-        Token("^0x[-0-9A-Fa-f]+", TT::HexadecimalConstant),
         Token("^0[-0-7]+", TT::OctalConstant),
+        Token("^0x[-0-9A-Fa-f]+", TT::HexadecimalConstant),
+        Token("^[-0-9]+", TT::IntegerConstant),
         Token("^[-.0-9]+", TT::FloatConstant),
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
         Token("^[_a-zA-Z][_\\w]*:", TT::Label),

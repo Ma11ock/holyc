@@ -374,8 +374,8 @@ namespace hclang {
          * @param lhs Left hand side of the operator.
          * @param rhs Right hand side of the operator.
          */
-        BinaryOperator(Operator op, exp lhs, exp rhs)
-            : mOp(op),mLhs(lhs),mRhs(rhs) {}
+        BinaryOperator(Operator op, exp lhs, exp rhs, const Lexeme &l = Lexeme())
+            : Expression(l),mOp(op),mLhs(lhs),mRhs(rhs) {}
         /// Defaulted destructor.
         virtual ~BinaryOperator() = default;
         /**

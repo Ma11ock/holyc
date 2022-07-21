@@ -279,7 +279,7 @@ std::string_view hclang::BinaryOperator::getClassName() const {
 }
 
 std::list<hclang::programData> hclang::BinaryOperator::getChildren() const {
-    return {};
+    return { mLhs, mRhs };
 }
 
 

@@ -31,6 +31,13 @@ public:
     virtual void parseSemantics();
 
 protected:
+    struct operatorLex {
+        hclang::Lexeme lex;
+        hclang::Operator op;
+
+        operatorLex(const hclang::Lexeme &l, hclang::Operator op) : lex(l),op(op) {}
+        ~operatorLex() = default;
+    };
     /**
      * Cache class for expression parsing with the Shunting Yard algorithm.
      */
@@ -38,7 +45,7 @@ protected:
     public:
         YardShunter() : mOperatorStack(),mExpressionQueue() {}
         ~YardShunter() = default;
-        void push(hclang::Operator op);
+        void push(hclang::Operator op, const hclang::Lexeme &l);
         inline void push(hclang::exp expr) { mExpressionQueue.push(expr); }
         /**
          *
@@ -48,11 +55,11 @@ protected:
     protected:
         /// Stack to help converting infix notation to postfix notation
         /// for the operators.
-        std::stack<hclang::Operator> mOperatorStack;
+        std::stack<operatorLex> mOperatorStack;
         /// Stack of expressions reduced with shunting yard.
-        std::queue<std::variant<hclang::exp, hclang::Operator>> mExpressionQueue;
+        std::queue<std::variant<hclang::exp, operatorLex>> mExpressionQueue;
 
-        std::optional<hclang::Operator> pushOp(hclang::Operator op);
+        std::optional<operatorLex> pushOp(hclang::Operator op, const hclang::Lexeme &l);
         void flushOperators();
     };
     /// Current lookahead object.
@@ -226,19 +233,8 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
 hclang::decl ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
                                                            hclang::StorageClass sclass,
                                                            hclang::Identifier id) {
-    getNextLookahead();
-    switch(mLookAhead.getTokenType()) {
-    case TT::IntegerConstant:
-    case TT::HexadecimalConstant:
-    case TT::OctalConstant:
-        pushTokenToQueue();
-        return std::make_shared<hclang::VariableInitialization>(id, info,
-                                                                expressionStart(TT::Semicolon, true));
-    break;
-    default:
-        break;
-    }
-    throw std::invalid_argument("decliniteq");
+    return std::make_shared<hclang::VariableInitialization>(id, info,
+                                                            expressionStart(TT::Semicolon, true));
 }
 
 hclang::declStmnt ParseTreeImpl::declarationStatementStart(hclang::typeInfo info,
@@ -274,7 +270,7 @@ hclang::exp ParseTreeImpl::expressionStart(hclang::TokenType endToken,
             break;
         case TT::Star:
             // TODO unary *.
-            ys.push(O::Multiply);
+            ys.push(O::Multiply, mLookAhead);
             break;
         default:
             break;
@@ -294,30 +290,33 @@ void ParseTreeImpl::parseSemantics() {
 
 // YardShunter implementation.
 
-void ParseTreeImpl::YardShunter::push(hclang::Operator op) {
-    auto maybePoppedOperator = pushOp(op);
+void ParseTreeImpl::YardShunter::push(hclang::Operator op,
+                                      const hclang::Lexeme &l) {
+    auto maybePoppedOperator = pushOp(op, l);
 
     if(!maybePoppedOperator) {
         return;
     }
 
     auto poppedOperator = maybePoppedOperator.value();
-    mExpressionQueue.push(poppedOperator);
+    mExpressionQueue.emplace(ParseTreeImpl::operatorLex(l, op));
 }
 
-std::optional<hclang::Operator> ParseTreeImpl::YardShunter::pushOp(hclang::Operator op) {
+std::optional<ParseTreeImpl::operatorLex>
+ParseTreeImpl::YardShunter::pushOp(hclang::Operator op,
+                                   const hclang::Lexeme &l) {
     if(mOperatorStack.empty()) {
-        mOperatorStack.push(op);
-        return std::make_optional<hclang::Operator>();
+        mOperatorStack.emplace(l, op);
+        return std::nullopt;
     }
     // TODO associativity.
     if(auto topOp = mOperatorStack.top();
-       hclang::getPrecedence(topOp) > hclang::getPrecedence(op)) {
+       hclang::getPrecedence(topOp.op) > hclang::getPrecedence(op)) {
         mOperatorStack.pop();
-        mOperatorStack.push(op);
-        return std::make_optional<hclang::Operator>(topOp);
+        mOperatorStack.emplace(l, op);
+        return std::make_optional<ParseTreeImpl::operatorLex>(topOp);
     }
-    return std::make_optional<hclang::Operator>();
+    return std::nullopt;
 }
 
 hclang::exp ParseTreeImpl::YardShunter::reduce() {
@@ -333,13 +332,13 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
             continue;
         }
 
-        auto o = std::get<hclang::Operator>(expOrOp);
+        auto o = std::get<operatorLex>(expOrOp);
         auto rhs = postfixEvalStack.top();
         postfixEvalStack.pop();
         auto lhs = postfixEvalStack.top();
         postfixEvalStack.pop();
 
-        postfixEvalStack.push(std::make_shared<hclang::BinaryOperator>(o, lhs, rhs));
+        postfixEvalStack.push(std::make_shared<hclang::BinaryOperator>(o.op, lhs, rhs, o.lex));
     }
 
     return postfixEvalStack.top();

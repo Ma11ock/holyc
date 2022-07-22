@@ -102,14 +102,11 @@ namespace hclang {
         CharacterConstant,
         FloatConstant,
         IntegerConstant,
-        HexadecimalConstant,
-        OctalConstant,
         StringConstant,
         Label,
 
         // For internal use by the Lexer. These are never sent to the parser.
         Space,
     }; // Token Type.
-    // id += 3; -> id = id + 3;
 }  // hclang
 #endif /* SLANG_HPP */

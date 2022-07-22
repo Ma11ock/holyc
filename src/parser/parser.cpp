@@ -264,8 +264,6 @@ hclang::exp ParseTreeImpl::expressionStart(hclang::TokenType endToken,
     while(getNextLookahead() != endToken) {
         switch(mLookAhead.getTokenType()) {
         case TT::IntegerConstant:
-        case TT::HexadecimalConstant:
-        case TT::OctalConstant:
             ys.push(std::make_shared<hclang::IntegerConstant>(mLookAhead));
             break;
         case TT::Star:

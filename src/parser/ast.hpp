@@ -519,8 +519,6 @@ namespace hclang {
          */
         IntegerConstant(const Lexeme &source, bool isSigned = false) :
             IntegerConstant(source.getText(), isSigned,
-                            (source == hclang::TokenType::IntegerConstant) ? 10 :
-                            ((source == hclang::TokenType::HexadecimalConstant) ? 16 : 8),
                             source) {}
         /**
          * Value constructor. Derive integer constant from source.
@@ -529,7 +527,7 @@ namespace hclang {
          * @param l Lexeme of the integer constant.
          */
         IntegerConstant(std::string_view source, bool isSigned = false,
-                        int base = 10, const Lexeme &l = Lexeme());
+                        const Lexeme &l = Lexeme());
         /**
          * Set the signedness of the integer constant.
          * @param isSigned True if constant is signed, false if not.

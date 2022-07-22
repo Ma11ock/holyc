@@ -346,12 +346,6 @@ std::string_view hclang::stringifyTokenType(TokenType type) {
     case TT::Label:
         return "Label";
         break;
-    case TT::HexadecimalConstant:
-        return "HexadecimalConstant";
-        break;
-    case TT::OctalConstant:
-        return "OctalConstant";
-        break;
     case TT::Space:
         return "Space";
         break;
@@ -404,7 +398,7 @@ hclang::Lexeme hclang::Lexer::pull() {
         // EOF
         Token("^$", TT::Eof),
         // Whitespace, comments, etc.
-        Token("^\\s+|^/\\*(?:[\\s\\S])*?\\*/|^//.*", TT::Space, true),
+        Token("^(\\s+|/\\*(?:[\\s\\S])*?\\*/|//.*)", TT::Space, true),
         // Keywords.
         Token("^\\{", TT::LCurlyBracket),
         Token("^\\}", TT::RCurlyBracket),
@@ -479,10 +473,8 @@ hclang::Lexeme hclang::Lexer::pull() {
         // Constants.
         Token("^'.'", TT::CharacterConstant),
         Token("^\".*\"", TT::StringConstant), // Maybe multiline?
-        Token("^0[-0-7]+", TT::OctalConstant),
-        Token("^0x[-0-9A-Fa-f]+", TT::HexadecimalConstant),
-        Token("^[-0-9]+", TT::IntegerConstant),
-        Token("^[-.0-9]+", TT::FloatConstant),
+        Token("^(0x[-0-9A-Fa-f]+|[-0-9]+)", TT::IntegerConstant),
+        Token("^([-0-9](\\.[0-9](e[-0-9])?)?)+", TT::FloatConstant), // TODO HC might allow hex float constants.
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
         Token("^[_a-zA-Z][_\\w]*:", TT::Label),
     };

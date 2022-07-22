@@ -56,13 +56,22 @@ hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t
 }
 
 hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
-                                         int base, const hclang::Lexeme &l)
+                                         const hclang::Lexeme &l)
     : Constant(hclang::typeInfo{ ""sv, nullptr, HCType::U64i }, l),mValue(0),mIsSigned(isSigned) {
-    // Signed constant.
-    if(base == 16 && (util::prefix(source, "0x") || util::prefix(source, "0X"))) {
+    // Check base.
+    int base = 10;
+    if(util::prefix(source, "0x") || util::prefix(source, "0X")) {
         source = std::string_view(source.data() + 2, source.size() - 2);
+        base = 16;
+    } else if(util::prefix(source, "0")) {
+        source = std::string_view(source.data() + 1, source.size() - 1);
+        base = 8;
     }
+
+    fmt::print("`{}` is the integer source, base {}\n", source, base);
+
     if(isSigned) {
+        // Signed constant.
         std::int64_t value = 0;
         auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value, base);
 
@@ -90,7 +99,7 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
     auto [ptr, ec] = std::from_chars(source.begin(), source.end(), mValue, base);
 
     if(ptr != source.end()) {
-        throw std::invalid_argument(fmt::format("{} is not a valid int64",
+        throw std::invalid_argument(fmt::format("{} is not a valid integer",
                                                 source));
     }
 

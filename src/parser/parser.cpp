@@ -43,10 +43,12 @@ protected:
      */
     class YardShunter {
     public:
-        YardShunter() : mOperatorStack(),mExpressionQueue() {}
+        YardShunter() : mOperatorStack(),mExpressionQueue(),mLastObjWasOp(false) {}
         ~YardShunter() = default;
         void push(hclang::Operator op, const hclang::Lexeme &l);
-        inline void push(hclang::exp expr) { mExpressionQueue.push(expr); }
+        void push(hclang::exp expr);
+
+        bool lastObjWasOp() const { return mLastObjWasOp; }
         /**
          *
          * Note: assumes that the expression fed to the parser is valid.
@@ -58,6 +60,8 @@ protected:
         std::stack<operatorLex> mOperatorStack;
         /// Stack of expressions reduced with shunting yard.
         std::queue<std::variant<hclang::exp, operatorLex>> mExpressionQueue;
+        /// True if the last pushed value was an operator (except for postifx operators).
+        bool mLastObjWasOp;
 
         std::optional<operatorLex> pushOp(hclang::Operator op, const hclang::Lexeme &l);
         void flushOperators();
@@ -92,11 +96,6 @@ protected:
         return result;                          \
     }
 
-static bool isUnary(hclang::Operator op);
-static bool isControl(hclang::Operator op);
-static bool isBinary(hclang::Operator op);
-static bool isPrefix(hclang::Operator op);
-static bool isPostfix(hclang::Operator op);
 static hclang::typeInfo getTypeFrom(const hclang::Lexeme &l);
 
 // ParseTree implementation.
@@ -157,8 +156,10 @@ hclang::GR ParseTreeImpl::programStart() {
     case TT::I8i:
     case TT::I0i:
         parseRet(declarationStatementStart(getTypeFrom(mLookAhead)));
-    case TT::Eof:
     case TT::Semicolon:
+        return programStart();
+        break;
+    case TT::Eof:
         return nullptr;
         break;
     default:
@@ -268,16 +269,64 @@ hclang::exp ParseTreeImpl::expressionStart(hclang::TokenType endToken,
             break;
         case TT::Star:
             // TODO unary *.
-            ys.push(O::Multiply, mLookAhead);
+            ys.push(ys.lastObjWasOp() ? O::Dereference : O::Multiply, mLookAhead);
             break;
         case TT::Divide:
             ys.push(O::Divide, mLookAhead);
             break;
         case TT::Plus:
-            ys.push(O::Add, mLookAhead);
+            if(!ys.lastObjWasOp()) {
+                ys.push(O::Add, mLookAhead);
+            }
+            // Ignore positive.
             break;
         case TT::Minus:
-            ys.push(O::Subtract, mLookAhead);
+            ys.push(ys.lastObjWasOp() ? O::Negative : O::Subtract, mLookAhead);
+            break;
+        case TT::MinusMinus:
+            ys.push(ys.lastObjWasOp() ? O::PrefixMinusMinus : O::PostfixMinusMinus, mLookAhead);
+            break;
+        case TT::PlusPlus:
+            ys.push(ys.lastObjWasOp() ? O::PrefixPlusPlus : O::PostfixPlusPlus, mLookAhead);
+            break;
+        case TT::Ampersand:
+            ys.push(ys.lastObjWasOp() ? O::AddressOf : O::BitwiseAnd, mLookAhead);
+            break;
+        case TT::BitwiseOr:
+            ys.push(O::BitwiseOr, mLookAhead);
+            break;
+        case TT::BitwiseNot:
+            ys.push(O::BitwiseNot, mLookAhead);
+            break;
+        case TT::AndEqual:
+            ys.push(O::AndAssignment, mLookAhead);
+            break;
+        case TT::OrEqual:
+            ys.push(O::OrAssignment, mLookAhead);
+            break;
+        case TT::XorEqual:
+            ys.push(O::XorAssignment, mLookAhead);
+            break;
+        case TT::LeftshiftEqual:
+            ys.push(O::LeftshiftAssignment, mLookAhead);
+            break;
+        case TT::RightshiftEqual:
+            ys.push(O::RightshiftAssignment, mLookAhead);
+            break;
+        case TT::PlusEqual:
+            ys.push(O::AddAssignment, mLookAhead);
+            break;
+        case TT::MinusEqual:
+            ys.push(O::SubtractAssignment, mLookAhead);
+            break;
+        case TT::TimesEqual:
+            ys.push(O::MultiplyAssignment, mLookAhead);
+            break;
+        case TT::DividedByEqual:
+            ys.push(O::DivideAssignment, mLookAhead);
+            break;
+        case TT::ModuloEqual:
+            ys.push(O::ModuloAssignment, mLookAhead);
             break;
         default:
             break;
@@ -297,6 +346,11 @@ void ParseTreeImpl::parseSemantics() {
 
 // YardShunter implementation.
 
+void ParseTreeImpl::YardShunter::push(hclang::exp expr) {
+    mExpressionQueue.push(expr);
+    mLastObjWasOp = false;
+}
+
 void ParseTreeImpl::YardShunter::push(hclang::Operator op,
                                       const hclang::Lexeme &l) {
     auto maybePoppedOperator = pushOp(op, l);
@@ -306,7 +360,8 @@ void ParseTreeImpl::YardShunter::push(hclang::Operator op,
     }
 
     auto poppedOperator = maybePoppedOperator.value();
-    mExpressionQueue.emplace(ParseTreeImpl::operatorLex(poppedOperator));
+    mExpressionQueue.emplace(ParseTreeImpl::operatorLex(maybePoppedOperator.value()));
+    mLastObjWasOp = !hclang::operatorIsPostfix(op);
 }
 
 std::optional<ParseTreeImpl::operatorLex>
@@ -342,12 +397,32 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
         }
 
         auto o = std::get<operatorLex>(expOrOp);
-        auto rhs = postfixEvalStack.top();
-        postfixEvalStack.pop();
-        auto lhs = postfixEvalStack.top();
-        postfixEvalStack.pop();
+        switch(hclang::operatorArgs(o.op)) {
+        case 0:
+            break;
+        case 1:
+        {
+            auto expr = postfixEvalStack.top();
+            postfixEvalStack.pop();
+            postfixEvalStack.push(std::make_shared<hclang::UnaryOperator>(o.op, expr, o.lex));
+        }
+            break;
+        case 2:
+        {
+            auto rhs = postfixEvalStack.top();
+            postfixEvalStack.pop();
+            auto lhs = postfixEvalStack.top();
+            postfixEvalStack.pop();
+            postfixEvalStack.push(std::make_shared<hclang::BinaryOperator>(o.op, lhs, rhs, o.lex));
+        }
+            break;
+        case 3:
+            break;
+        default:
+            return nullptr;
+            break;
+        }
 
-        postfixEvalStack.push(std::make_shared<hclang::BinaryOperator>(o.op, lhs, rhs, o.lex));
     }
 
     return postfixEvalStack.top();
@@ -361,60 +436,8 @@ void ParseTreeImpl::YardShunter::flushOperators() {
         mExpressionQueue.push(o);
     }
 }
+
 // Static functions.
-
-bool isUnary(hclang::Operator op) {
-    using O = hclang::Operator;
-    switch(op) {
-    case O::LogicalNot:
-    case O::Negative:
-    case O::Postivie:
-    case O::Dereference:
-    case O::AddressOf:
-    case O::BitwiseNot:
-        return true;
-        break;
-    default:
-        break;
-    }
-
-    return false;
-}
-
-bool isControl(hclang::Operator op) {
-    using O = hclang::Operator;
-    switch(op) {
-    case O::Leftparen:
-    case O::Rightparen:
-        return true;
-        break;
-    default:
-        break;
-    }
-    return false;
-}
-
-bool isBinary(hclang::Operator op) {
-    return !isUnary(op) && !isControl(op);
-}
-
-bool isPrefix(hclang::Operator op) {
-    return !isPostfix(op);
-}
-
-bool isPostfix(hclang::Operator op) {
-    using O = hclang::Operator;
-    switch(op) {
-    case O::PostfixPlusPlus:
-    case O::PostfixMinusMinus:
-        return true;
-        break;
-    default:
-        break;
-    }
-    return false;
-}
-
 
 hclang::typeInfo getTypeFrom(const hclang::Lexeme &l) {
     using ti = hclang::typeInfo;

@@ -286,6 +286,9 @@ std::string_view hclang::stringifyTokenType(TokenType type) {
     case TT::ModuloEqual:
         return "ModuloEqual";
         break;
+    case TT::XorEqual:
+        return "XorEqual";
+        break;
     case TT::OrEqual:
         return "OrEqual";
         break;
@@ -470,6 +473,7 @@ hclang::Lexeme hclang::Lexer::pull() {
         Token("^\\>\\>\\=", TT::RightshiftEqual),
         Token("^\\|\\=", TT::OrEqual),
         Token("^\\&\\=", TT::AndEqual),
+        Token("^\\^\\=", TT::XorEqual),
         // Constants.
         Token("^'.'", TT::CharacterConstant),
         Token("^\".*\"", TT::StringConstant), // Maybe multiline?
@@ -507,11 +511,13 @@ hclang::Lexeme hclang::Lexer::pull() {
             maxLexeme = hclang::Lexeme(match, token.getTokenType(),
                                        mCurLine, mCurPos - mCurLineOffset,
                                        endLineNo, endPos - maxEndLineOffset);
+        } else if(matched && token.getTokenType() == TT::Eof) {
+            return hclang::Lexeme("", TT::Eof);
         }
     }
 
     // Make sure there was a match.
-    if(maxLexeme.getText().empty()) {
+    if(maxLexeme == TT::Error) {
         throw std::invalid_argument("No match");
     }
 

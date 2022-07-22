@@ -19,6 +19,7 @@
 // Aliases.
 
 using O = hclang::Operator;
+using hct = hclang::HCType;
 
 // Static globals.
 
@@ -95,29 +96,27 @@ static BlockStack blockStack;
 
 // Static functions.
 
-static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
-                                    hclang::Operator op) {
-    if(!lhs || !rhs) {
-        return nullptr;
-    }
-
-    switch(op) {
-    case O::Multiply:
-        return builder.CreateMul(lhs, rhs, "multmp");
+static llvm::Type *llvmTypeFrom(const hclang::typeInfo &ti) {
+    switch(ti.type) {
+    case hct::U64i:
+    case hct::I64i:
+        return llvm::Type::getInt64Ty(context);
         break;
-    case O::Divide:
-        return builder.CreateSDiv(lhs, rhs, "multmp");
+    case hct::U32i:
+    case hct::I32i:
+        return llvm::Type::getInt32Ty(context);
         break;
-    case O::Add:
-        return builder.CreateAdd(lhs, rhs, "addtmp");
+    case hct::U16i:
+    case hct::I16i:
+        return llvm::Type::getInt16Ty(context);
         break;
-    case O::Subtract:
-        return builder.CreateSub(lhs, rhs, "subtmp");
+    case hct::U8i:
+    case hct::I8i:
+        return llvm::Type::getInt8Ty(context);
         break;
     default:
         break;
     }
-
     return nullptr;
 }
 
@@ -247,7 +246,6 @@ llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id
     return alloca;
 }
 
-
 static inline llvm::Value *variableValue(const std::string &name) {
     llvm::Value *ptr = nullptr;
     if(symbols.count(name)) {
@@ -263,6 +261,126 @@ static inline llvm::Value *variableValue(const std::string &name) {
         );
 }
 
+static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op) {
+    if(!expr) {
+        return nullptr;
+    }
+
+    switch(op) {
+    case O::Negative:
+        return builder.CreateNeg(expr, "negatetmp");
+        break;
+    case O::BitwiseNot:
+        return builder.CreateNot(expr, "nottmp");
+        break;
+    case O::Positive:
+        return expr;
+        break;
+    default:
+        break;
+    }
+
+    return nullptr;
+}
+
+static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable,
+                               hclang::Operator op, const hclang::typeInfo &ti = {}) {
+    if(!expr || !variable) {
+        return nullptr;
+    }
+
+    if(op == O::Assignment) {
+        return builder.CreateStore(expr, variable, false);
+    }
+
+    // All other assigns depend on the current value of variable.
+    auto val = builder.CreateLoad(llvmTypeFrom(ti), variable, false, "assigntmp");
+    llvm::Value *result = nullptr;
+    switch(op) {
+    case O::AddAssignment:
+    {
+        result = builder.CreateAdd(val, expr, "addeqtmp");
+        builder.CreateStore(result, variable, false);
+    }
+        break;
+    default:
+        break;
+    }
+
+    return result;
+}
+
+static llvm::Value *assignment(llvm::Value *expr, const hclang::Identifier &id,
+                               hclang::Operator op) {
+    return assignment(expr, symbols[id.getId()], op);
+}
+
+/**
+ * Create a binary operation between two LLVM values.
+ * @param lhs Left hand side of the operation.
+ * @param rhs Right hand side of the operation.
+ * @param op Operation to perform. Should be a binary operator.
+ * @see hclang::Operator
+ * @param nowrap True if wrapping should be disabled, false if not.
+ * @param signedOp True if the operation is signed, false if unsigned.
+ * @param exact True if operation is "exact" (no remainder).
+ * @return LLVM value generated from the operation.
+ */
+static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
+                                    hclang::Operator op, bool nowrap = false,
+                                    bool signedOp = false, bool exact = false) {
+    if(!lhs || !rhs) {
+        return nullptr;
+    }
+
+    bool hasNUW = nowrap && !signedOp;
+    bool hasNSW = nowrap && signedOp;
+    switch(op) {
+    case O::Multiply:
+        return builder.CreateMul(lhs, rhs, "multmp", hasNUW, hasNSW);
+        break;
+    case O::Divide:
+        if(signedOp) {
+            return builder.CreateSDiv(lhs, rhs, "sdivtmp", exact);
+        }
+        return builder.CreateUDiv(lhs, rhs, "udivtmp", exact);
+        break;
+    case O::Add:
+        return builder.CreateAdd(lhs, rhs, "addtmp", hasNUW, hasNSW);
+        break;
+    case O::Subtract:
+        return builder.CreateSub(lhs, rhs, "subtmp", hasNUW, hasNSW);
+        break;
+    case O::Modulo:
+        if(signedOp) {
+            return builder.CreateSRem(lhs, rhs, "smodtmp");
+        }
+        return builder.CreateURem(lhs, rhs, "umodtmp");
+        break;
+    case O::Leftshift:
+        return builder.CreateShl(lhs, rhs, "shltmp", hasNUW, hasNSW);
+        break;
+    case O::Rightshift:
+        if(signedOp) {
+            return builder.CreateAShr(lhs, rhs, "ashrtmp", exact);
+        }
+        return builder.CreateLShr(lhs, rhs, "lshrtmp", exact);
+        break;
+    case O::BitwiseAnd:
+        return builder.CreateAnd(lhs, rhs, "bitandtmp");
+        break;
+    case O::BitwiseOr:
+        return builder.CreateOr(lhs, rhs, "bitortmp");
+        break;
+    case O::BitwiseXor:
+        return builder.CreateXor(lhs, rhs, "bitxortmp");
+        break;
+    default:
+        break;
+    }
+
+    return nullptr;
+}
 // ParseTree implementation.
 
 void hclang::ParseTree::compile(const hclang::fs::path &path) const {
@@ -390,12 +508,15 @@ hclang::LLV hclang::VariableDeclaration::toLLVM() const {
     return nullptr;
 }
 
+hclang::LLV hclang::Assignment::toLLVM() const {
+    return assignment(mRhs->toLLVM(), mLhs, mOperator);
+}
+
 hclang::LLV hclang::VariableInitialization::toLLVM() const {
     auto alloca = hclang::VariableDeclaration::toLLVM();
     auto rhs = mRhs->toLLVM();
 
-    // TODo
-    return builder.CreateStore(rhs, alloca);
+    return assignment(rhs, alloca, hclang::Operator::Assignment);
 }
 
 hclang::LLV hclang::Program::toLLVM() const {
@@ -409,6 +530,10 @@ hclang::LLV hclang::Program::toLLVM() const {
 
 hclang::LLV hclang::BinaryOperator::toLLVM() const {
     return binaryOperation(mLhs->toLLVM(), mRhs->toLLVM(), mOp);
+}
+
+hclang::LLV hclang::UnaryOperator::toLLVM() const {
+    return unaryOperation(mExpr->toLLVM(), mOp);
 }
 
 hclang::LLV hclang::DeclarationStatement::toLLVM() const {

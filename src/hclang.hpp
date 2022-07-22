@@ -75,6 +75,7 @@ namespace hclang {
         BitshiftRight,
         QuestionMark,
         Sizeof,
+        XorEqual,
         PlusEqual,
         MinusEqual,
         TimesEqual,

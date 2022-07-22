@@ -38,7 +38,7 @@ namespace hclang {
         /// - (unary).
         Negative,
         /// + (unary).
-        Postivie,
+        Positive,
         /// * (unary).
         Dereference,
         /// & (unary).
@@ -98,7 +98,7 @@ namespace hclang {
         /// >>= (binary (assignment), lhs not expression).
         RightshiftAssignment,
         /// *= (binary (assignment), lhs not expression).
-        TimesAssignment,
+        MultiplyAssignment,
         /// /= (binary (assignment), lhs not expression).
         DivideAssignment,
         /// &= (binary (assignment), lhs not expression).
@@ -108,9 +108,13 @@ namespace hclang {
         /// ^= (binary (assignment), lhs not expression).
         XorAssignment,
         /// += (binary (assignment), lhs not expression).
-        PlusAssignment,
+        AddAssignment,
         /// -= (binary (assignment), lhs not expression).
-        MinusAssignment,
+        SubtractAssignment,
+        /// %= (binary (assignment), lhs not expression).
+        ModuloAssignment,
+        /// ?: (ternary).
+        Ternary,
         /// Lparen (control).
         Leftparen,
         /// Rparen (control).
@@ -415,6 +419,45 @@ namespace hclang {
     };
 
     /**
+     * Unary operator language construct (any operator with one argument).
+     */
+    class UnaryOperator : public Expression {
+    public:
+        /**
+         * Value constructor. Sets all members.
+         * @param op The operator category.
+         * @param lhs Left hand side of the operator.
+         * @param rhs Right hand side of the operator.
+         */
+        UnaryOperator(Operator op, exp expr, const Lexeme &l = Lexeme())
+            : Expression(l),mOp(op),mExpr(expr) {}
+        /// Defaulted destructor.
+        virtual ~UnaryOperator() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM() const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::list<programData> getChildren() const;
+    private:
+        /// Operator category.
+        Operator mOp;
+        /// Left hand side of the operator.
+        exp mExpr;
+    };
+
+    /**
      * Dummy class that represents all statement productions (assignment, if, while, etc.).
      */
     class Statement : public GrammarRule {
@@ -507,26 +550,23 @@ namespace hclang {
          * Value constructor. Set all members.
          * @param value Value of the constant.
          * @param type Type of integer. Only intrinsics of size > 0 are valid (or pointer).
-         * @param isSigned True if constant is signed, false if unsigned.
          * @param l Lexeme of the integer constant.
          */
-        IntegerConstant(std::uint64_t value, typeInfo type, bool isSigned = false,
+        IntegerConstant(std::uint64_t value, typeInfo type,
                         const Lexeme &l = Lexeme());
         /**
          * Value constructor. Derive integer constant from source.
          * @param source Lexeme that of the integer constant.
-         * @param isSigned True if constant is signed, false if unsigned.
          */
-        IntegerConstant(const Lexeme &source, bool isSigned = false) :
-            IntegerConstant(source.getText(), isSigned,
+        IntegerConstant(const Lexeme &source) :
+            IntegerConstant(source.getText(),
                             source) {}
         /**
          * Value constructor. Derive integer constant from source.
          * @param source Source that of the integer constant.
-         * @param isSigned True if constant is signed, false if unsigned.
          * @param l Lexeme of the integer constant.
          */
-        IntegerConstant(std::string_view source, bool isSigned = false,
+        IntegerConstant(std::string_view source,
                         const Lexeme &l = Lexeme());
         /**
          * Set the signedness of the integer constant.
@@ -560,6 +600,34 @@ namespace hclang {
         std::uint64_t mValue;
         /// True if mValue signed, false if not.
         bool mIsSigned;
+    };
+
+    class Assignment : public Expression {
+    public:
+        Assignment(const Identifier &id, exp rhs, Operator op)
+            : mLhs(id),mRhs(rhs),mOperator(op) {}
+        virtual ~Assignment() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM() const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<programData> getChildren() const;
+    protected:
+        Identifier mLhs;
+        exp mRhs;
+        Operator mOperator;
     };
 
     /**
@@ -812,6 +880,28 @@ namespace hclang {
         /// Global level compound statements and function declarations.
         std::list<programData> mStatements;
     };
+
+    /**
+     * Query operator position.
+     * @param op Operator to query.
+     * @return True if `op` is unary and prefix, false if not.
+     */
+    bool operatorIsPrefix(Operator op);
+
+    /**
+     * Query operator position.
+     * @param op Operator to query.
+     * @return True if `op` is unary and postfix, false if not.
+     */
+    bool operatorIsPostfix(Operator op);
+
+    /**
+     * Query number of arguments an operator takes.
+     * @param op Operator to query.
+     * @return Number of arguments "op" takes (control characters, like '(',
+     * take 0 as they're not compiled to LLVM).
+     */
+    int operatorArgs(Operator op);
 
     /**
      * Get an Operator category as a string.

@@ -9,11 +9,16 @@
 #include <regex>
 #include <algorithm>
 #include <limits>
+#include <stack>
 #include "../util.hpp"
 
 using TT = hclang::TokenType;
 using O = hclang::Operator;
 using namespace std::string_view_literals;
+
+#define PRIMARY(what) (fmt::styled(what, fg(fmt::color::magenta) | fmt::emphasis::bold))
+#define SECONDARY(what) (fmt::styled(what, fg(fmt::color::cyan)))
+#define TERTIARY(what) (fmt::styled(what, fg(fmt::color::light_blue)))
 
 // GrammarRule.
 
@@ -33,8 +38,8 @@ void hclang::GrammarRule::setLexeme(const hclang::Lexeme &l) {
 // IntegerConstant.
 
 hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t,
-                                         bool isSigned, const hclang::Lexeme &l)
-    : Constant(t, l),mValue(value),mIsSigned(isSigned) {
+                                         const hclang::Lexeme &l)
+    : Constant(t, l),mValue(value),mIsSigned(false) {
     // Test intrinsic type.
     using hct = hclang::HCType;
     auto type = t.type;
@@ -55,9 +60,10 @@ hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t
     }
 }
 
-hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
+hclang::IntegerConstant::IntegerConstant(std::string_view source,
                                          const hclang::Lexeme &l)
-    : Constant(hclang::typeInfo{ ""sv, nullptr, HCType::U64i }, l),mValue(0),mIsSigned(isSigned) {
+    : Constant(hclang::typeInfo{ ""sv, nullptr, HCType::U64i }, l),mValue(0),
+      mIsSigned(false) {
     // Check base.
     int base = 10;
     if(util::prefix(source, "0x") || util::prefix(source, "0X")) {
@@ -68,10 +74,11 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
         base = 8;
     }
 
-    fmt::print("`{}` is the integer source, base {}\n", source, base);
+    mIsSigned = util::prefix(source, "-");
 
-    if(isSigned) {
+    if(mIsSigned) {
         // Signed constant.
+        mType.type = HCType::I64i;
         std::int64_t value = 0;
         auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value, base);
 
@@ -121,12 +128,12 @@ void hclang::IntegerConstant::pprint() const {
     printDefault();
     if(mIsSigned) {
         fmt::print(" {} {}",
-                   mType,
+                   SECONDARY(mType),
                    fmt::styled(static_cast<std::int64_t>(mValue),
                                fg(fmt::color::cyan)));
     } else {
         fmt::print(" {} {}",
-                   fmt::styled(mType, fg(fmt::color::magenta)),
+                   SECONDARY(mType),
                    fmt::styled(mValue, fg(fmt::color::cyan)));
     }
 }
@@ -139,11 +146,26 @@ std::list<hclang::programData> hclang::IntegerConstant::getChildren() const {
     return {};
 }
 
+// Assignment
+
+void hclang::Assignment::pprint() const {
+    printDefault();
+    fmt::print(" {} {}",  SECONDARY(mType), PRIMARY(mLhs));
+}
+
+std::string_view hclang::Assignment::getClassName() const {
+    return "Assignment";
+}
+
+std::list<hclang::programData> hclang::Assignment::getChildren() const {
+    return { mRhs };
+}
+
 // Variable declaration
 
 void hclang::VariableDeclaration::pprint() const {
     printDefault();
-    fmt::print(" Var:{} Type:{}", mId, "U64");
+    fmt::print(" {} {}",  SECONDARY(mType), PRIMARY(mId));
 }
 
 std::string_view hclang::VariableDeclaration::getClassName() const {
@@ -232,14 +254,17 @@ void hclang::Program::pprint() const {
         return;
     }
 
-    std::list<pdPrintData> stack = { pdPrintData(mStatements.front(), 1) };
+    std::stack<pdPrintData> stack;
+    for(auto i = mStatements.rbegin(); i != mStatements.rend(); i++) {
+        stack.emplace(*i, 1);
+    }
     std::list<hclang::programData> visited = { mStatements.front() };
 
     std::uint32_t lastLevel = 0;
     // Depth first traversal of the AST. Print nodes as we pop them.
     while(!stack.empty()) {
-        auto [curObj, indentLevel] = stack.front();
-        stack.pop_front();
+        auto [curObj, indentLevel] = stack.top();
+        stack.pop();
 
         // Print indentation and tree formatting.
         fmt::print("{:{}}{}-", "", indentLevel * 2 - 1, (indentLevel != lastLevel) ? '`' : '|');
@@ -248,10 +273,10 @@ void hclang::Program::pprint() const {
         lastLevel = indentLevel;
 
         auto children = curObj->getChildren();
-        for(const auto &child : children) {
-            if(std::find(visited.begin(), visited.end(), child) == visited.end()) {
-                visited.push_front(child);
-                stack.emplace_front(child, indentLevel + 1);
+        for(auto c = children.rbegin(); c != children.rend(); c++) {
+            if(std::find(visited.begin(), visited.end(), *c) == visited.end()) {
+                visited.push_front(*c);
+                stack.emplace(*c, indentLevel + 1);
             }
         }
     }
@@ -299,6 +324,20 @@ std::list<hclang::programData> hclang::BinaryOperator::getChildren() const {
     return { mLhs, mRhs };
 }
 
+// UnaryOperator.
+
+void hclang::UnaryOperator::pprint() const {
+    printDefault();
+    fmt::print(" {}", fmt::styled(hclang::operatorToString(mOp), fg(fmt::color::magenta)));
+}
+
+std::string_view hclang::UnaryOperator::getClassName() const {
+    return "UnaryOperator";
+}
+
+std::list<hclang::programData> hclang::UnaryOperator::getChildren() const {
+    return { mExpr };
+}
 
 // DeclarationStatement
 
@@ -459,10 +498,10 @@ int hclang::getPrecedence(hclang::Operator op) {
     case O::Assignment:
     case O::LeftshiftAssignment:
     case O::RightshiftAssignment:
-    case O::TimesAssignment:
+    case O::MultiplyAssignment:
     case O::DivideAssignment:
-    case O::PlusAssignment:
-    case O::MinusAssignment:
+    case O::AddAssignment:
+    case O::SubtractAssignment:
     case O::AndAssignment:
     case O::OrAssignment:
     case O::XorAssignment:
@@ -518,4 +557,47 @@ int hclang::getPrecedence(hclang::Operator op) {
         break;
     }
     return -1;
+}
+
+bool hclang::operatorIsPrefix(hclang::Operator op) {
+    switch(op) {
+    case O::Negative:
+    case O::Positive:
+    case O::Dereference:
+    case O::LogicalNot:
+    case O::BitwiseNot:
+    case O::AddressOf:
+    case O::PrefixPlusPlus:
+    case O::PrefixMinusMinus:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
+bool hclang::operatorIsPostfix(hclang::Operator op) {
+    switch(op) {
+    case O::PostfixPlusPlus:
+    case O::PostfixMinusMinus:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
+int hclang::operatorArgs(hclang::Operator op) {
+    if(hclang::operatorIsPostfix(op) || hclang::operatorIsPrefix(op)) {
+        return 1;
+    }
+    else if(op == O::Leftparen || op == O::Rightparen) {
+        return 0;
+    }
+    else if(op == O::Ternary) {
+        return 3;
+    }
+    return 2;
 }

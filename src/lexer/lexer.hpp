@@ -11,6 +11,7 @@
 
 #include "../hclang.hpp"
 #include "../config.hpp"
+#include "../util.hpp"
 
 namespace hclang {
     using lexemeLen = std::string_view::size_type;
@@ -34,7 +35,7 @@ namespace hclang {
             : mText(text),mLiteralText(""),mLineNo(lineNo),mEndLineNo(endLineNo),
               mColNo(colNo),mEndColNo(endColNo),mType(type) { }
         Lexeme() : mText(""),mLiteralText(""),mLineNo(noLineNum),mColNo(noLineNum),
-                   mType(TokenType::Space) { }
+                   mType(TokenType::Error) { }
         Lexeme(const Lexeme &l)
             : mText(l.mText),mLiteralText(l.mLiteralText),mLineNo(l.mLineNo),
               mEndLineNo(l.mEndLineNo),mColNo(l.mColNo),mEndColNo(l.mEndColNo),
@@ -190,6 +191,8 @@ namespace fmt {
                                   fmt::styled(fp.pos, fg(fmt::color::gold)));
         }
     };
+
+    MAKE_FMT_STYLE_SPEC(hclang::Identifier)
 }
 
 namespace fmt {
@@ -209,6 +212,8 @@ namespace fmt {
                                __fileposPrinter{l.getEndColNumber()});
         }
     };
+
+    MAKE_FMT_STYLE_SPEC(hclang::Lexeme)
 }
 
 #endif /* SLANG_TOKEN_HPP */

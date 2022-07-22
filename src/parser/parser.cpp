@@ -272,6 +272,15 @@ hclang::exp ParseTreeImpl::expressionStart(hclang::TokenType endToken,
             // TODO unary *.
             ys.push(O::Multiply, mLookAhead);
             break;
+        case TT::Divide:
+            ys.push(O::Divide, mLookAhead);
+            break;
+        case TT::Plus:
+            ys.push(O::Add, mLookAhead);
+            break;
+        case TT::Minus:
+            ys.push(O::Subtract, mLookAhead);
+            break;
         default:
             break;
         }
@@ -299,7 +308,7 @@ void ParseTreeImpl::YardShunter::push(hclang::Operator op,
     }
 
     auto poppedOperator = maybePoppedOperator.value();
-    mExpressionQueue.emplace(ParseTreeImpl::operatorLex(l, op));
+    mExpressionQueue.emplace(ParseTreeImpl::operatorLex(poppedOperator));
 }
 
 std::optional<ParseTreeImpl::operatorLex>
@@ -311,11 +320,12 @@ ParseTreeImpl::YardShunter::pushOp(hclang::Operator op,
     }
     // TODO associativity.
     if(auto topOp = mOperatorStack.top();
-       hclang::getPrecedence(topOp.op) > hclang::getPrecedence(op)) {
+       hclang::getPrecedence(topOp.op) >= hclang::getPrecedence(op)) {
         mOperatorStack.pop();
         mOperatorStack.emplace(l, op);
         return std::make_optional<ParseTreeImpl::operatorLex>(topOp);
     }
+    mOperatorStack.emplace(l, op);
     return std::nullopt;
 }
 
@@ -326,6 +336,7 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
     while(!mExpressionQueue.empty()) {
         auto expOrOp = mExpressionQueue.front();
         mExpressionQueue.pop();
+
 
         if(std::holds_alternative<hclang::exp>(expOrOp)) {
             postfixEvalStack.push(std::get<hclang::exp>(expOrOp));

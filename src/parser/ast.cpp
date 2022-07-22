@@ -307,7 +307,17 @@ std::list<hclang::programData> hclang::DeclarationStatement::getChildren() const
 std::string_view hclang::operatorToString(hclang::Operator op) {
     switch(op) {
     case O::Add:
-        return "+";
+        return "+ (Addition)";
+        break;
+    case O::Subtract:
+        return "- (Subtraction)";
+        break;
+    case O::Multiply:
+        return "* (Multiplication)";
+        break;
+    case O::Divide:
+        return "/ (Division)";
+        break;
     default:
         break;
     }

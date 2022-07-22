@@ -106,7 +106,13 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
         return builder.CreateMul(lhs, rhs, "multmp");
         break;
     case O::Divide:
-        return builder.CreateUDiv(lhs, rhs, "multmp");
+        return builder.CreateSDiv(lhs, rhs, "multmp");
+        break;
+    case O::Add:
+        return builder.CreateAdd(lhs, rhs, "addtmp");
+        break;
+    case O::Subtract:
+        return builder.CreateSub(lhs, rhs, "subtmp");
         break;
     default:
         break;

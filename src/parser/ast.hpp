@@ -147,11 +147,11 @@ namespace hclang {
      */
     struct typeInfo {
         /// Identifier/typename. Only used if `type` is class, enum, or union.
-        Identifier id;
+        Identifier id = Identifier("");
         /// Type that is pointed to. Only used if `type` is pointer.
-        std::shared_ptr<typeInfo> pointer;
+        std::shared_ptr<typeInfo> pointer = nullptr;
         /// HolyC type category.
-        HCType type;
+        HCType type = HCType::U64i;
     };
 
     /**
@@ -301,12 +301,22 @@ namespace hclang {
         /// Default constructor. Defaulted.
         Expression() = default;
         /**
+         * Value constructor. Sets all fields.
+         * @param type Type of the integer constant. Must be Ux or Ix where x > 0.
+         * @param lex Lexeme for the expression.
+         */
+        Expression(typeInfo type, const Lexeme &lex = Lexeme())
+            : GrammarRule(lex),mType(type) {}
+        /**
          * Value constructor. Sets the beginning lexeme.
          * @param l Lexeme that began this grammar production.
          */
-        Expression(const hclang::Lexeme &l) : GrammarRule(l) {}
+        Expression(const hclang::Lexeme &l) : GrammarRule(l),mType() {}
         /// Default destructor. Defaulted.
         virtual ~Expression() = default;
+    protected:
+        /// Type of integer (should only intrinsic of size > 0 or pointer).
+        typeInfo mType;
     };
 
     /**
@@ -478,9 +488,10 @@ namespace hclang {
         Constant() = default;
         /**
          * Value constructor. Set the lexeme.
+         * @param type The type value of the constant.
          * @param lexeme Value to set `lexeme` to.
          */
-        Constant(const Lexeme &l) : Expression(l) {}
+        Constant(typeInfo type, const Lexeme &l = Lexeme()) : Expression(type, l) {}
         /// Defaulted destructor.
         virtual ~Constant() = default;
     };
@@ -499,7 +510,7 @@ namespace hclang {
          * @param isSigned True if constant is signed, false if unsigned.
          * @param l Lexeme of the integer constant.
          */
-        IntegerConstant(std::uint64_t value, HCType type, bool isSigned = false,
+        IntegerConstant(std::uint64_t value, typeInfo type, bool isSigned = false,
                         const Lexeme &l = Lexeme());
         /**
          * Value constructor. Derive integer constant from source.
@@ -549,8 +560,6 @@ namespace hclang {
     protected:
         /// Value of the constant.
         std::uint64_t mValue;
-        /// Type of integer (should only intrinsic of size > 0 or pointer).
-        HCType mType;
         /// True if mValue signed, false if not.
         bool mIsSigned;
     };
@@ -856,5 +865,42 @@ namespace hclang {
      */
     int getPrecedence(Operator op);
 }
+
+namespace fmt {
+    template<>
+    struct fmt::formatter<hclang::typeInfo>
+    {
+        template<typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+
+        template<typename FormatContext>
+        auto format(const hclang::typeInfo &info, FormatContext &ctx) {
+            using hct = hclang::HCType;
+            switch(info.type) {
+            case hct::Union:
+                return fmt::format_to(ctx.out(), "Union.{}", info.id);
+                break;
+            case hct::Class:
+                return fmt::format_to(ctx.out(), "class.{}", info.id);
+                break;
+            case hct::Enum:
+                return fmt::format_to(ctx.out(), "Enum.{}", info.id);
+                break;
+            case hct::Pointer:
+                if(info.pointer) {
+                    return fmt::format_to(ctx.out(), "*{}", *info.pointer);
+                }
+                return fmt::format_to(ctx.out(), "*nullptr");
+                break;
+            default:
+                break;
+            }
+            return fmt::format_to(ctx.out(), "{}", hclang::typeToString(info.type));
+        }
+
+    };
+    MAKE_FMT_STYLE_SPEC(hclang::typeInfo)
+}
+
 
 #endif /* SLANG_AST_HPP */

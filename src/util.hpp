@@ -40,6 +40,19 @@ namespace util {
     }
 }
 
+#define MAKE_FMT_STYLE_SPEC(what)                                       \
+    template<>                                                          \
+    struct fmt::formatter<fmt::detail::styled_arg<what>> {              \
+        template<typename ParseContext>                                 \
+        constexpr auto parse(ParseContext& ctx) { return ctx.begin(); } \
+                                                                        \
+        template<typename FormatContext>                                \
+        auto format(const fmt::detail::styled_arg<what> &arg,           \
+                    FormatContext &ctx) {                               \
+            return fmt::format_to(ctx.out(), arg.style, "{}", arg.value); \
+        }                                                               \
+    };
+
 /**
  * Make binary integer functions for a type `cname`, using member `membername`,
  * for integer type `itype`. This is kept separate from the unary functions so

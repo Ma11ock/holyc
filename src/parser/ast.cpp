@@ -13,6 +13,7 @@
 
 using TT = hclang::TokenType;
 using O = hclang::Operator;
+using namespace std::string_view_literals;
 
 // GrammarRule.
 
@@ -31,11 +32,12 @@ void hclang::GrammarRule::setLexeme(const hclang::Lexeme &l) {
 
 // IntegerConstant.
 
-hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::HCType type,
+hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t,
                                          bool isSigned, const hclang::Lexeme &l)
-    : Constant(l),mValue(value),mType(type),mIsSigned(isSigned) {
+    : Constant(t, l),mValue(value),mIsSigned(isSigned) {
     // Test intrinsic type.
     using hct = hclang::HCType;
+    auto type = t.type;
     switch(type) {
     case hct::Class:
     case hct::Enum:
@@ -55,7 +57,7 @@ hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::HCType typ
 
 hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
                                          int base, const hclang::Lexeme &l)
-    : Constant(l),mValue(0),mIsSigned(isSigned) {
+    : Constant(hclang::typeInfo{ ""sv, nullptr, HCType::U64i }, l),mValue(0),mIsSigned(isSigned) {
     // Signed constant.
     if(base == 16 && (util::prefix(source, "0x") || util::prefix(source, "0X"))) {
         source = std::string_view(source.data() + 2, source.size() - 2);
@@ -109,9 +111,14 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source, bool isSigned,
 void hclang::IntegerConstant::pprint() const {
     printDefault();
     if(mIsSigned) {
-        fmt::print(" 'U64' {}", static_cast<std::int64_t>(mValue));
+        fmt::print(" {} {}",
+                   mType,
+                   fmt::styled(static_cast<std::int64_t>(mValue),
+                               fg(fmt::color::cyan)));
     } else {
-        fmt::print(" 'U64' {}", mValue);
+        fmt::print(" {} {}",
+                   fmt::styled(mType, fg(fmt::color::magenta)),
+                   fmt::styled(mValue, fg(fmt::color::cyan)));
     }
 }
 
@@ -181,7 +188,8 @@ void hclang::VariableInitialization::setLexeme(const hclang::Lexeme &l) {
 
 void hclang::VariableInitialization::pprint() const {
     printDefault();
-    fmt::print(" {} `{}`", "U64", mId.getId());
+    fmt::print(" {} {}", fmt::styled("U64", fg(fmt::color::light_green) | fmt::emphasis::bold),
+               fmt::styled(mId.getId(), fg(fmt::color::cyan) | fmt::emphasis::bold));
 }
 
 std::string_view hclang::VariableInitialization::getClassName() const {
@@ -225,7 +233,7 @@ void hclang::Program::pprint() const {
         stack.pop_front();
 
         // Print indentation and tree formatting.
-        fmt::print("{:{}}{}", "", indentLevel * 2 - 1, (indentLevel != lastLevel) ? '`' : '|');
+        fmt::print("{:{}}{}-", "", indentLevel * 2 - 1, (indentLevel != lastLevel) ? '`' : '|');
         curObj->pprint();
         fmt::print("\n");
         lastLevel = indentLevel;
@@ -271,7 +279,7 @@ std::list<hclang::programData> hclang::CompoundStatement::getChildren() const {
 
 void hclang::BinaryOperator::pprint() const {
     printDefault();
-    fmt::print(" {}", hclang::operatorToString(mOp));
+    fmt::print(" {}", fmt::styled(hclang::operatorToString(mOp), fg(fmt::color::magenta)));
 }
 
 std::string_view hclang::BinaryOperator::getClassName() const {

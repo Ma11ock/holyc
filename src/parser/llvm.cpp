@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include "ast.hpp"
+#include "symbols.hpp"
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
@@ -27,7 +28,6 @@ static llvm::LLVMContext context;
 static llvm::IRBuilder<> builder(context);
 static llvm::Module *module = nullptr;
 static llvm::Function *mainFunc = nullptr;
-static std::map<std::string_view, llvm::Value*> symbols;
 
 class BlockStack {
 protected:
@@ -161,17 +161,20 @@ static inline llvm::Value *makePlus(llvm::Value *lhs, llvm::Value *rhs) {
 }
 
 template<typename T>
-static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id) {
+static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id,
+                                             hclang::SymbolTable<llvm::Value*> &symbols) {
     return nullptr;
 }
 
 template<>
-llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id) {
-    auto nId = id.getId();
-    if(symbols.count(nId)) {
-        return symbols[nId];
+llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id,
+                                                   hclang::SymbolTable<llvm::Value*> &symbols) {
+    if(auto symbol = symbols.find(id);
+       symbol) {
+        return symbol;
     }
 
+    auto nId = id.getId();
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
     llvm::IRBuilder<> tmpBuilder(
         &curFn->getEntryBlock(),
@@ -181,16 +184,18 @@ llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id)
     auto alloca = tmpBuilder.CreateAlloca(
         llvm::Type::getInt8Ty(context), nullptr, name
         );
-    symbols[nId] = alloca;
+    symbols[id] = alloca;
     return alloca;
 }
 
 template<>
-llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id) {
-    auto nId = id.getId();
-    if(symbols.count(nId)) {
-        return symbols[nId];
+llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id,
+                                                    hclang::SymbolTable<llvm::Value*> &symbols) {
+    if(auto symbol = symbols.find(id);
+       symbol) {
+        return symbol;
     }
+    auto nId = id.getId();
 
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
     llvm::IRBuilder<> tmpBuilder(
@@ -201,17 +206,19 @@ llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id
     auto alloca = tmpBuilder.CreateAlloca(
         llvm::Type::getInt16Ty(context), nullptr, name
         );
-    symbols[nId] = alloca;
+    symbols[id] = alloca;
     return alloca;
 }
 
 
 template<>
-llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id) {
-    auto nId = id.getId();
-    if(symbols.count(nId)) {
-        return symbols[nId];
+llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id,
+                                                    hclang::SymbolTable<llvm::Value*> &symbols) {
+    if(auto symbol = symbols.find(id);
+       symbol) {
+        return symbol;
     }
+    auto nId = id.getId();
 
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
     llvm::IRBuilder<> tmpBuilder(
@@ -222,16 +229,18 @@ llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id
     auto alloca = tmpBuilder.CreateAlloca(
         llvm::Type::getInt32Ty(context), nullptr, name
         );
-    symbols[nId] = alloca;
+    symbols[id] = alloca;
     return alloca;
 }
 
 template<>
-llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id) {
-    auto nId = id.getId();
-    if(symbols.count(nId)) {
-        return symbols[nId];
+llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id,
+                                                    hclang::SymbolTable<llvm::Value*> &symbols) {
+    if(auto symbol = symbols.find(id);
+       symbol) {
+        return symbol;
     }
+    auto nId = id.getId();
 
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
     llvm::IRBuilder<> tmpBuilder(
@@ -242,18 +251,16 @@ llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id
     auto alloca = tmpBuilder.CreateAlloca(
         llvm::Type::getInt64Ty(context), nullptr, name
         );
-    symbols[nId] = alloca;
+    symbols[id] = alloca;
     return alloca;
 }
 
-static inline llvm::Value *variableValue(const std::string &name) {
-    llvm::Value *ptr = nullptr;
-    if(symbols.count(name)) {
-        ptr = symbols[name];
-    } else {
-        ptr = integerConstant(0);
+static inline llvm::Value *readLvalue(const std::string &name,
+                                      hclang::SymbolTable<llvm::Value*> &symbols) {
+    llvm::Value *ptr = symbols.find(hclang::Identifier(name));
+    if(!ptr) {
+        ptr = integerConstant(UINT32_C(0));
     }
-
     return builder.CreateLoad(
         llvm::Type::getInt32Ty(context),
         ptr,
@@ -311,8 +318,12 @@ static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable,
 }
 
 static llvm::Value *assignment(llvm::Value *expr, const hclang::Identifier &id,
-                               hclang::Operator op) {
-    return assignment(expr, symbols[id.getId()], op);
+                               hclang::Operator op, hclang::SymbolTable<llvm::Value*> &symbols) {
+    auto to = symbols.find(id);
+    if(!to) {
+        return nullptr;
+    }
+    return assignment(expr, to, op);
 }
 
 /**
@@ -396,12 +407,14 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 
 
     // AST->LLVM.
-    mProgram.toLLVM();
+    SymbolTable<llvm::Value*> symbolTable;
+    parserContext pc { symbolTable };
+    mProgram.toLLVM(pc);
 
     auto retBlock = llvm::BasicBlock::Create(context, "ret", mainFunc);
     blockStack.push(retBlock);
-    if(symbols.count("result")) {
-        builder.CreateRet(variableValue("result"));
+    if(symbolTable.contains("result")) {
+        builder.CreateRet(readLvalue("result", symbolTable));
     } else {
         builder.CreateRet(integerConstant(0));
     }
@@ -470,31 +483,31 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     dest.flush();
 }
 
-hclang::LLV hclang::IntegerConstant::toLLVM() const {
+hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {
     if(mIsSigned) {
         return integerConstant(static_cast<std::int64_t>(mValue));
     }
     return integerConstant(mValue);
 }
 
-hclang::LLV hclang::VariableDeclaration::toLLVM() const {
+hclang::LLV hclang::VariableDeclaration::toLLVM(parserContext &pc) const {
     using hct = hclang::HCType;
     switch(mType.type) {
     case hct::I8i:
     case hct::U8i:
-        return generateEntryBlockAlloca<std::int8_t>(mId);
+        return generateEntryBlockAlloca<std::int8_t>(mId, pc.symbolTable);
         break;
     case hct::I16i:
     case hct::U16i:
-        return generateEntryBlockAlloca<std::int16_t>(mId);
+        return generateEntryBlockAlloca<std::int16_t>(mId, pc.symbolTable);
         break;
     case hct::I32i:
     case hct::U32i:
-        return generateEntryBlockAlloca<std::int32_t>(mId);
+        return generateEntryBlockAlloca<std::int32_t>(mId, pc.symbolTable);
         break;
     case hct::I64i:
     case hct::U64i:
-        return generateEntryBlockAlloca<std::int64_t>(mId);
+        return generateEntryBlockAlloca<std::int64_t>(mId, pc.symbolTable);
         break;
     case hct::Class:
         break;
@@ -508,45 +521,50 @@ hclang::LLV hclang::VariableDeclaration::toLLVM() const {
     return nullptr;
 }
 
-hclang::LLV hclang::Assignment::toLLVM() const {
-    return assignment(mRhs->toLLVM(), mLhs, mOperator);
+hclang::LLV hclang::Assignment::toLLVM(parserContext &pc) const {
+    return assignment(mRhs->toLLVM(pc), mLhs, mOperator, pc.symbolTable);
 }
 
-hclang::LLV hclang::VariableInitialization::toLLVM() const {
-    auto alloca = hclang::VariableDeclaration::toLLVM();
-    auto rhs = mRhs->toLLVM();
+hclang::LLV hclang::VariableInitialization::toLLVM(parserContext &pc) const {
+    auto alloca = hclang::VariableDeclaration::toLLVM(pc);
+    auto rhs = mRhs->toLLVM(pc);
 
     return assignment(rhs, alloca, hclang::Operator::Assignment);
 }
 
-hclang::LLV hclang::Program::toLLVM() const {
+hclang::LLV hclang::Program::toLLVM(parserContext &pc) const {
     for(const auto &pd : mStatements) {
         if(pd != nullptr) {
-            pd->toLLVM();
+            pd->toLLVM(pc);
         }
     }
     return nullptr;
 }
 
-hclang::LLV hclang::BinaryOperator::toLLVM() const {
-    return binaryOperation(mLhs->toLLVM(), mRhs->toLLVM(), mOp);
+hclang::LLV hclang::BinaryOperator::toLLVM(parserContext &pc) const {
+    return binaryOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp);
 }
 
-hclang::LLV hclang::UnaryOperator::toLLVM() const {
-    return unaryOperation(mExpr->toLLVM(), mOp);
+hclang::LLV hclang::UnaryOperator::toLLVM(parserContext &pc) const {
+    return unaryOperation(mExpr->toLLVM(pc), mOp);
 }
 
-hclang::LLV hclang::DeclarationStatement::toLLVM() const {
+hclang::LLV hclang::DeclarationStatement::toLLVM(parserContext &pc) const {
     for(const auto &dec : mDecls) {
-        dec->toLLVM();
+        dec->toLLVM(pc);
     }
     return nullptr;
 }
 
-hclang::LLV hclang::Cast::toLLVM() const {
+hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
     // TODO check expression's type.
     if(hclang::isInteger(mIntoType)) {
-        return builder.CreateIntCast(mExpr->toLLVM(), llvm::Type::getInt32Ty(context), true);
+        return builder.CreateIntCast(mExpr->toLLVM(pc),
+                                     llvm::Type::getInt32Ty(context), true);
     }
+    return nullptr;
+}
+
+hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
     return nullptr;
 }

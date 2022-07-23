@@ -29,6 +29,15 @@ namespace hclang {
      * Alias for llvm::value*.
      */
     using LLV = llvm::Value*;
+
+    // Forward declaration to avoid circular includes.
+    template<typename T>
+    class SymbolTable;
+
+    struct parserContext {
+        SymbolTable<LLV> &symbolTable;
+    };
+
     /**
      * All valid operators in HolyC.
      */
@@ -259,7 +268,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const = 0;
+        virtual LLV toLLVM(parserContext &pc) const = 0;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -341,7 +350,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -396,7 +405,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -437,7 +446,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -507,7 +516,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -582,7 +591,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -611,7 +620,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -642,7 +651,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -669,7 +678,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -690,13 +699,23 @@ namespace hclang {
     class Declaration : public GrammarRule {
     public:
         /// Defaulted constructor.
-        Declaration() = default;
+        Declaration() : mId("") {}
         /**
          * Value constructor. Set the lexeme.
          */
-        Declaration(const Lexeme &l) : GrammarRule(l) { }
+        Declaration(const Lexeme &l)
+            : GrammarRule(l),mId(l) { }
+        /**
+         * Value constructor. Set the lexeme.
+         */
+        Declaration(const Identifier &id, const Lexeme &l)
+            : GrammarRule(l),mId(id) { }
         /// Destructor. Default.
         virtual ~Declaration() = default;
+        const inline Identifier &getIdRef() const { return mId; }
+    protected:
+        /// Identifier of the declared variable.
+        Identifier mId;
     };
 
     /**
@@ -715,13 +734,13 @@ namespace hclang {
          */
         VariableDeclaration(const Identifier &id, typeInfo type,
                             const Lexeme &l = Lexeme())
-            : Declaration(l),mId(id),mType(type) { }
+            : Declaration(id, l),mType(type) { }
         /**
          * Value constructor. Set the lexeme.
          * @param lexeme Value to set `lexeme` to.
          */
         VariableDeclaration(typeInfo type, const Lexeme &lexeme)
-            : mId(lexeme),mType(type) {}
+            : Declaration(lexeme),mType(type) {}
         /// Destructor. Default.
         virtual ~VariableDeclaration() = default;
         /**
@@ -733,7 +752,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -741,9 +760,8 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<programData> getChildren() const;
+
     protected:
-        /// Identifier of the declared variable.
-        Identifier mId;
         /// Type information.
         typeInfo mType;
     };
@@ -753,6 +771,11 @@ namespace hclang {
      * @see VariableDeclaration.
      */
     using varDecl = std::shared_ptr<VariableDeclaration>;
+
+    template<typename... Args>
+    inline varDecl makeVarDecl(Args &&...args) {
+        return std::make_shared<VariableDeclaration>(std::forward<Args>(args)...);
+    }
 
     /**
      * Variable declaration and initialization. Different from `Assignment`
@@ -779,7 +802,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -797,6 +820,69 @@ namespace hclang {
      * @see VariableInitialization.
      */
     using varInit = std::shared_ptr<VariableInitialization>;
+
+    template<typename... Args>
+    inline varInit makeVarInit(Args &&...args) {
+        return std::make_shared<VariableInitialization>(std::forward<Args>(args)...);
+    }
+
+
+    class DeclarationReference : public Expression {
+    public:
+        enum class Type {
+            LValue,
+            Function,
+        };
+
+        DeclarationReference(const Identifier &id, Type type,
+                             const SymbolTable<decl> &table, const Lexeme &l = Lexeme());
+        virtual ~DeclarationReference() = default;
+        /**
+         * Generate LLVM byteco<decl>de.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<programData> getChildren() const;
+
+        inline std::string_view stringifyType() const {
+            return stringifyType(mType);
+        }
+
+        inline std::string_view stringifyType(Type t) const {
+            switch(t) {
+            case Type::LValue:
+                return "lvalue";
+                break;
+            case Type::Function:
+                return "function";
+                break;
+            default:
+                break;
+            }
+            return "?";
+        }
+    private:
+        Type mType;
+        decl mDeclRef;
+    };
+
+    using declRef = std::shared_ptr<DeclarationReference>;
+
+    template<typename... Args>
+    inline declRef makeDeclRef(Args &&...args) {
+        return std::make_shared<DeclarationReference>(std::forward<Args>(args)...);
+    }
 
     /**
      * Declaration statement production rule.
@@ -826,7 +912,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**
@@ -863,7 +949,7 @@ namespace hclang {
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
          */
-        virtual LLV toLLVM() const;
+        virtual LLV toLLVM(parserContext &pc) const;
         /// Pretty print this grammar rule (does not print children).
         virtual void pprint() const;
         /**

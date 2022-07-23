@@ -145,8 +145,12 @@ namespace hclang {
         Identifier(const Identifier &other) : Identifier(other.mId) {}
         Identifier(const Lexeme &lexeme);
         ~Identifier() = default;
-        std::string_view getId() const { return mId; }
-        std::string getIdCopy() const { return std::string(mId); }
+        inline std::string_view getId() const { return mId; }
+        inline std::string getIdCopy() const { return std::string(mId); }
+
+        inline bool operator==(const Identifier &id) const {
+            return mId == id.mId;
+        }
     protected:
         std::string_view mId;
     };

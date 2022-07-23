@@ -5,6 +5,7 @@
 #include "ast.hpp"
 
 #include "../lexer/lexer.hpp"
+#include "symbols.hpp"
 
 #include <list>
 #include <variant>
@@ -70,6 +71,8 @@ protected:
     hclang::Lexeme mLookAhead;
     /// Queue used for lookahead tokens read when reducing.
     std::list<hclang::Lexeme> mReduceQueue;
+    /// Symbol table generated during parsing.
+    hclang::SymbolTable<hclang::decl> mSymbolTable;
 
     // Private parsing functions.
     inline void pushTokenToQueue() { mReduceQueue.push_back(mLookAhead); }
@@ -94,6 +97,12 @@ protected:
         auto result = funcall;                  \
         result->setLexeme(mCurLex);             \
         return result;                          \
+    }
+
+#define pushTableRet(funcall) {                     \
+        auto dec = funcall;                         \
+        mSymbolTable.add(dec->getIdRef(), dec);     \
+        return dec;                                 \
     }
 
 static hclang::typeInfo getTypeFrom(const hclang::Lexeme &l);
@@ -216,14 +225,15 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
     switch(mLookAhead.getTokenType()) {
     case TT::Semicolon:
         pushTokenToQueue();
-        return std::make_shared<hclang::VariableDeclaration>(id, info, mLookAhead);
+        pushTableRet(hclang::makeVarDecl(id, info, mLookAhead));
         break;
     case TT::Equals:
         parseRet(declarationInitializationEqual(info, sclass, id));
         break;
     case TT::Comma:
+        // TODO
         pushTokenToQueue();
-        return std::make_shared<hclang::VariableDeclaration>(id, info, mLookAhead);
+        pushTableRet(hclang::makeVarDecl(id, info, mLookAhead));
         break;
     default:
         break;
@@ -234,8 +244,7 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
 hclang::decl ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
                                                            hclang::StorageClass sclass,
                                                            hclang::Identifier id) {
-    return std::make_shared<hclang::VariableInitialization>(id, info,
-                                                            expressionStart(TT::Semicolon, true));
+    pushTableRet(hclang::makeVarInit(id, info, expressionStart(TT::Semicolon, true)));
 }
 
 hclang::declStmnt ParseTreeImpl::declarationStatementStart(hclang::typeInfo info,
@@ -266,6 +275,11 @@ hclang::exp ParseTreeImpl::expressionStart(hclang::TokenType endToken,
         switch(mLookAhead.getTokenType()) {
         case TT::IntegerConstant:
             ys.push(std::make_shared<hclang::IntegerConstant>(mLookAhead));
+            break;
+        case TT::Identifier: // TODO could be function, need further parsing.
+            ys.push(hclang::makeDeclRef(hclang::Identifier(mLookAhead),
+                                        hclang::DeclarationReference::Type::LValue,
+                                        mSymbolTable, mLookAhead));
             break;
         case TT::Star:
             // TODO unary *.

@@ -11,6 +11,7 @@
 #include <limits>
 #include <stack>
 #include "../util.hpp"
+#include "symbols.hpp"
 
 using TT = hclang::TokenType;
 using O = hclang::Operator;
@@ -174,6 +175,33 @@ std::string_view hclang::VariableDeclaration::getClassName() const {
 
 std::list<hclang::programData> hclang::VariableDeclaration::getChildren() const {
     return {};
+}
+
+// DeclarationReference
+
+hclang::DeclarationReference::DeclarationReference(const hclang::Identifier &id,
+                                                   Type type,
+                                                   const hclang::SymbolTable<decl> &table,
+                                                   const Lexeme &l)
+    : Expression(l),mType(type),mDeclRef(table.find(id))
+{
+}
+
+void hclang::DeclarationReference::pprint() const {
+    printDefault();
+    std::size_t address = 0;
+    if(mDeclRef) {
+        address = reinterpret_cast<std::size_t>(mDeclRef.get());
+    }
+    fmt::print("{} 0x{:x}", PRIMARY(stringifyType()), SECONDARY(address));
+}
+
+std::string_view hclang::DeclarationReference::getClassName() const {
+    return "DeclarationReference";
+}
+
+std::list<hclang::programData> hclang::DeclarationReference::getChildren() const {
+    return {  };
 }
 
 // Cast.

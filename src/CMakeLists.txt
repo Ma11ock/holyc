@@ -18,13 +18,15 @@ set(SRC_SOURCES
   lexer/lexer.cpp
   parser/parser.cpp
   parser/ast.cpp
+  parser/symbols.cpp
+  parser/llvm.cpp
   # Header files.
   hclang.hpp
   config.hpp
   lexer/lexer.hpp
   parser/parser.hpp
   parser/ast.hpp
-  parser/llvm.cpp
+  parser/symbols.hpp
   util.hpp
   log.hpp
   )

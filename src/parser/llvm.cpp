@@ -15,7 +15,6 @@
 #include <llvm/MC/TargetRegistry.h>
 
 #include <string_view>
-#include <map>
 
 // Aliases.
 
@@ -163,7 +162,7 @@ static inline llvm::Value *makePlus(llvm::Value *lhs, llvm::Value *rhs) {
 template<typename T>
 static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id,
                                              hclang::SymbolTable<llvm::Value*> &symbols) {
-    return nullptr;
+    static_assert(true, "Cannot generate alloca for type");
 }
 
 template<>
@@ -255,8 +254,43 @@ llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id
     return alloca;
 }
 
-static inline llvm::Value *readLvalue(const std::string &name,
+template<typename T>
+static inline llvm::Value *readLvalue(std::string_view name,
                                       hclang::SymbolTable<llvm::Value*> &symbols) {
+    static_assert(true, "Cannot read Lvalue for type");
+}
+
+template<>
+llvm::Value *readLvalue<std::uint8_t>(std::string_view name,
+                                      hclang::SymbolTable<llvm::Value*> &symbols) {
+    llvm::Value *ptr = symbols.find(hclang::Identifier(name));
+    if(!ptr) {
+        ptr = integerConstant(UINT32_C(0));
+    }
+    return builder.CreateLoad(
+        llvm::Type::getInt8Ty(context),
+        ptr,
+        name
+        );
+}
+
+template<>
+llvm::Value *readLvalue<std::uint16_t>(std::string_view name,
+                                       hclang::SymbolTable<llvm::Value*> &symbols) {
+    llvm::Value *ptr = symbols.find(hclang::Identifier(name));
+    if(!ptr) {
+        ptr = integerConstant(UINT32_C(0));
+    }
+    return builder.CreateLoad(
+        llvm::Type::getInt16Ty(context),
+        ptr,
+        name
+        );
+}
+
+template<>
+llvm::Value *readLvalue<std::uint32_t>(std::string_view name,
+                                       hclang::SymbolTable<llvm::Value*> &symbols) {
     llvm::Value *ptr = symbols.find(hclang::Identifier(name));
     if(!ptr) {
         ptr = integerConstant(UINT32_C(0));
@@ -264,9 +298,30 @@ static inline llvm::Value *readLvalue(const std::string &name,
     return builder.CreateLoad(
         llvm::Type::getInt32Ty(context),
         ptr,
-        name.c_str()
+        name
         );
 }
+
+template<>
+llvm::Value *readLvalue<std::uint64_t>(std::string_view name,
+                                       hclang::SymbolTable<llvm::Value*> &symbols) {
+    llvm::Value *ptr = symbols.find(hclang::Identifier(name));
+    if(!ptr) {
+        ptr = integerConstant(UINT32_C(0));
+    }
+    return builder.CreateLoad(
+        llvm::Type::getInt64Ty(context),
+        ptr,
+        name
+        );
+}
+
+template<typename T>
+static inline llvm::Value *readLvalue(hclang::decl dec,
+                                      hclang::SymbolTable<llvm::Value*> &symbols) {
+    return readLvalue<T>(dec->getIdRef().getId(), symbols);
+}
+
 
 static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op) {
     if(!expr) {
@@ -414,7 +469,7 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     auto retBlock = llvm::BasicBlock::Create(context, "ret", mainFunc);
     blockStack.push(retBlock);
     if(symbolTable.contains("result")) {
-        builder.CreateRet(readLvalue("result", symbolTable));
+        builder.CreateRet(readLvalue<std::uint32_t>("result", symbolTable));
     } else {
         builder.CreateRet(integerConstant(0));
     }
@@ -566,5 +621,5 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
-    return nullptr;
+    return readLvalue<std::uint64_t>(mDeclRef, pc.symbolTable);
 }

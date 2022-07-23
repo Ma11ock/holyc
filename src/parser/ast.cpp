@@ -193,7 +193,7 @@ void hclang::DeclarationReference::pprint() const {
     if(mDeclRef) {
         address = reinterpret_cast<std::size_t>(mDeclRef.get());
     }
-    fmt::print("{} 0x{:x}", PRIMARY(stringifyType()), SECONDARY(address));
+    fmt::print(" {} {}{:x}", PRIMARY(stringifyType()), SECONDARY("0x"), SECONDARY(address));
 }
 
 std::string_view hclang::DeclarationReference::getClassName() const {

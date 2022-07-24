@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <list>
 #include <unordered_map>
+#include <variant>
 #include <optional>
 
 #include "type.hpp"
@@ -259,7 +260,7 @@ namespace hclang {
          * Value constructor. Set the lexeme.
          * @param lexeme Value to set `lexeme` to.
          */
-        GrammarRule(const hclang::Lexeme &lexeme) : mLexeme(lexeme) {}
+        GrammarRule(const Lexeme &lexeme) : mLexeme(lexeme) {}
         /// Defaulted constructor.
         GrammarRule() = default;
         /// Destructor. Default.
@@ -282,14 +283,18 @@ namespace hclang {
          */
         virtual std::list<std::shared_ptr<GrammarRule>> getChildren() const = 0;
 
-        inline const Lexeme &getLexemeConst() {
-            return mLexeme;
+        inline const Lexeme &getLexemeConst() const {
+            const static Lexeme DEFAULT_LEX;
+            if(mLexeme) {
+                return *mLexeme;
+            }
+            return DEFAULT_LEX;
         }
 
         virtual void setLexeme(const Lexeme &l);
     protected:
         /// Lexeme that began this production rule.
-        hclang::Lexeme mLexeme;
+        std::optional<hclang::Lexeme> mLexeme;
 
         /// Default pretty printing function.
         void printDefault() const;
@@ -300,11 +305,6 @@ namespace hclang {
      * @see GrammarRule
      */
     using GR = std::shared_ptr<GrammarRule>;
-    /**
-     * Alias to a shared pointer of a `GrammerRule`.
-     * @see GrammarRule
-     */
-    using programData = std::shared_ptr<GrammarRule>;
 
     /**
      * Dummy class for HolyC expressions (language constructs that return something).
@@ -366,7 +366,7 @@ namespace hclang {
          * Get class name.
          * @return Class name.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
         /// Type to cast `mExpr` into.
         typeInfo mIntoType;
@@ -421,7 +421,7 @@ namespace hclang {
          * Get class name.
          * @return Class name.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     private:
         /// Operator category.
         Operator mOp;
@@ -462,7 +462,7 @@ namespace hclang {
          * Get class name.
          * @return Class name.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     private:
         /// Operator category.
         Operator mOp;
@@ -515,7 +515,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
         /**
          * Generate LLVM bytecode.
          * @return LLVM object representing this production rule.
@@ -607,7 +607,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
         /// Value of the constant.
         std::uint64_t mValue;
@@ -636,7 +636,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
         Identifier mLhs;
         exp mRhs;
@@ -650,6 +650,7 @@ namespace hclang {
     public:
         CompoundStatement() = default;
         void add(stmnt statement);
+        void add(std::shared_ptr<CompoundStatement> statement);
         virtual ~CompoundStatement() = default;
         /**
          * Generate LLVM bytecode.
@@ -667,12 +668,19 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
+
+
     protected:
         statementList mStatementList;
     };
 
     using cmpdStmnt = std::shared_ptr<CompoundStatement>;
+
+    template<typename... Args>
+    inline cmpdStmnt makeCmpdStmnt(Args &&...args) {
+        return std::make_shared<CompoundStatement>(std::forward<Args>(args)...);
+    }
 
     class If : public Statement {
     public:
@@ -697,7 +705,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
         /// Boolean expression.
         exp mConditional;
@@ -780,7 +788,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
     };
 
@@ -811,7 +819,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
         funcDefn mDefinition;
     };
@@ -854,7 +862,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     };
 
     /**
@@ -900,7 +908,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
         /// RHS.
         exp mRhs;
@@ -944,7 +952,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
 
         inline std::string_view stringifyType() const {
             return stringifyType(mType);
@@ -1010,7 +1018,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
 
         inline std::optional<typeInfo> getType() const {
             if(mDecls.empty()) {
@@ -1037,6 +1045,19 @@ namespace hclang {
     using declStmnt = std::shared_ptr<DeclarationStatement>;
 
     /**
+     * Alias to a shared pointer of a `GrammerRule`.
+     * @see GrammarRule
+     */
+    using programData = std::variant<cmpdStmnt, funcDefn>;
+
+    inline GR getPD(const programData &pd) {
+        if(std::holds_alternative<cmpdStmnt>(pd)) {
+            return std::get<cmpdStmnt>(pd);
+        }
+        return std::get<funcDefn>(pd);
+    }
+
+    /**
      * Represents the whole file, or compilation unit.
      */
     class Program : public GrammarRule {
@@ -1047,7 +1068,12 @@ namespace hclang {
          * Add statement to program.
          * @param pd Statement to add.
          */
-        void add(programData pd);
+        void add(cmpdStmnt pd);
+        /**
+         * Add function to program.
+         * @param pd Function to add.
+         */
+        void add(funcDefn pd);
         /// Destructor. Default.
         virtual ~Program() = default;
         /**
@@ -1066,7 +1092,7 @@ namespace hclang {
          * Get all production rule members.
          * @return All production rule members.
          */
-        virtual std::list<programData> getChildren() const;
+        virtual std::list<GR> getChildren() const;
     protected:
         /// Global level compound statements and function declarations.
         std::list<programData> mStatements;
@@ -1145,7 +1171,7 @@ namespace hclang {
     int getPrecedence(Operator op);
 
     template<typename T>
-    inline programData scastPD(std::shared_ptr<T> p) {
+    inline GR scastGR(std::shared_ptr<T> p) {
         return std::static_pointer_cast<GrammarRule>(p);
     }
 }

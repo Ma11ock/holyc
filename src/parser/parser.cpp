@@ -14,6 +14,7 @@
 #include <optional>
 #include <stack>
 #include <queue>
+#include <deque>
 
 using TT = hclang::TokenType;
 using O = hclang::Operator;
@@ -70,13 +71,15 @@ protected:
     /// Current lookahead object.
     hclang::Lexeme mLookAhead;
     /// Queue used for lookahead tokens read when reducing.
-    std::queue<hclang::Lexeme> mReduceQueue;
+    std::deque<hclang::Lexeme> mReduceQueue;
     /// Symbol table generated during parsing.
     hclang::SymbolTable<hclang::decl> mSymbolTable;
 
     // Private parsing functions.
-    inline void pushTokenToQueue(const hclang::Lexeme &l) { mReduceQueue.push(l); }
-    inline void pushTokenToQueue() { pushTokenToQueue(mLookAhead); }
+    inline void pushTokenToBack(const hclang::Lexeme &l) { mReduceQueue.push_back(l); }
+    inline void pushTokenToBack() { pushTokenToBack(mLookAhead); }
+    inline void pushTokenToFront(const hclang::Lexeme &l) { mReduceQueue.push_front(l); }
+    inline void pushTokenToFront() { pushTokenToFront(mLookAhead); }
     inline hclang::Lexeme getRealNextLookahead() {
         mLookAhead = mLexer->pull();
         return mLookAhead;
@@ -133,7 +136,7 @@ std::shared_ptr<hclang::ParseTree> hclang::ParseTree::parseSyntax(const hclang::
 hclang::Lexeme ParseTreeImpl::getNextLookahead() {
     if(!mReduceQueue.empty()) {
         mLookAhead = mReduceQueue.front();
-        mReduceQueue.pop();
+        mReduceQueue.pop_front();
     } else {
         mLookAhead = mLexer->pull();
     }
@@ -145,22 +148,10 @@ hclang::Lexeme ParseTreeImpl::getNextLookahead() {
     return mLookAhead;
 }
 
-void ParseTreeImpl::parseTokens() {
-    for(auto gr = programStart(); gr != nullptr; gr = programStart()) {
-        mProgram.add(gr);
-    }
-
-    if(mConfig.shouldDumpAst()) {
-        mProgram.pprint();
-    }
-}
-
 hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart() {
-    return nullptr;
-}
-
-hclang::GR ParseTreeImpl::programStart() {
     getNextLookahead();
+
+    auto result = hclang::makeCmpdStmnt();
 
     switch(mLookAhead.getTokenType()) {
     case TT::U64i:
@@ -174,36 +165,85 @@ hclang::GR ParseTreeImpl::programStart() {
     case TT::I8i:
     case TT::I0i:
     case TT::F64:
-        // Determine if a function definition or a declaration.
-    {
-        pushTokenToQueue();
-        for(hclang::Lexeme curLex; (curLex = getRealNextLookahead()) != TT::LCurlyBracket;
-            pushTokenToQueue(curLex)) {
-            switch(curLex.getTokenType()) {
-            case TT::Equals:
-            case TT::Semicolon:
-                pushTokenToQueue(curLex);
-                parseRet(declarationStatementStart());
-                break;
-            default:
-                break;
-            }
-        }
-        // parseRet(functionDefinitionStart());
-    }
-    case TT::Semicolon:
-        return programStart();
-        break;
-    case TT::Eof:
-        return nullptr;
+    case TT::Extern:
+    case TT::_Extern:
+    case TT::Public:
+    case TT::Reg:
+    case TT::Noreg:
+    case TT::Static:
+        pushTokenToFront();
+        result->add(declarationStatementStart());
         break;
     default:
-        throw std::runtime_error(
-            fmt::format("Error got a {}: {}",
-                        hclang::stringifyTokenType(mLookAhead.getTokenType()),
-                        mLookAhead.getText()));
+        throw std::runtime_error("cmpdstmnt");
         break;
     }
+    return result;
+}
+
+void ParseTreeImpl::parseTokens() {
+    programStart();
+
+    if(mConfig.shouldDumpAst()) {
+        mProgram.pprint();
+    }
+}
+
+
+hclang::GR ParseTreeImpl::programStart() {
+
+    bool shouldContinue = true;
+    while(shouldContinue) {
+        getNextLookahead();
+
+        switch(mLookAhead.getTokenType()) {
+        case TT::U64i:
+        case TT::U32i:
+        case TT::U16i:
+        case TT::U8i:
+        case TT::U0i:
+        case TT::I64i:
+        case TT::I32i:
+        case TT::I16i:
+        case TT::I8i:
+        case TT::I0i:
+        case TT::F64:
+        {
+            // Determine if a function definition or a declaration.
+            pushTokenToFront();
+            for(hclang::Lexeme curLex;
+                (curLex = getRealNextLookahead()) != TT::LCurlyBracket;
+                pushTokenToBack(curLex)) {
+                switch(curLex.getTokenType()) {
+                case TT::Equals:
+                case TT::Semicolon:
+                    pushTokenToBack(curLex);
+                    mProgram.add(compoundStatementStart());
+                    goto end_decl_loop;
+                    break;
+                default:
+                    break;
+                }
+            }
+            // mProgram.add(functionDefinitionStart());
+        }
+        end_decl_loop:
+        break;
+        case TT::Semicolon:
+            break;
+        case TT::Eof:
+            shouldContinue = false;
+            break;
+        default:
+            throw std::runtime_error(
+                fmt::format("Error got a {}: {}",
+                            hclang::stringifyTokenType(mLookAhead.getTokenType()),
+                            mLookAhead.getText()));
+            break;
+        }
+    }
+
+    return nullptr;
 }
 
 hclang::decl ParseTreeImpl::declarationSpecifiers(std::optional<hclang::typeInfo> info,
@@ -250,7 +290,7 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
 
     switch(mLookAhead.getTokenType()) {
     case TT::Semicolon:
-        pushTokenToQueue();
+        pushTokenToFront();
         pushTableRet(hclang::makeVarDecl(id, info, sclass, mLookAhead));
         break;
     case TT::Equals:
@@ -258,7 +298,7 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
         break;
     case TT::Comma:
         // TODO
-        pushTokenToQueue();
+        pushTokenToFront();
         pushTableRet(hclang::makeVarDecl(id, info, sclass, mLookAhead));
         break;
     default:
@@ -376,7 +416,7 @@ hclang::exp ParseTreeImpl::expressionStart(hclang::TokenType endToken,
     }
 
     if(pushEndToken) {
-        pushTokenToQueue();
+        pushTokenToFront();
     }
 
     // Reduce remaining operations.

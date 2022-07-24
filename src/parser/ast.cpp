@@ -33,7 +33,11 @@ void hclang::GrammarRule::pprint() const {
 }
 
 void hclang::GrammarRule::setLexeme(const hclang::Lexeme &l) {
-    mLexeme = l;
+    if(!mLexeme) {
+        mLexeme = l;
+    } else {
+        *mLexeme |= l;
+    }
 }
 
 // IntegerConstant.
@@ -143,7 +147,7 @@ std::string_view hclang::IntegerConstant::getClassName() const {
     return "IntegerConstant";
 }
 
-std::list<hclang::programData> hclang::IntegerConstant::getChildren() const {
+std::list<hclang::GR> hclang::IntegerConstant::getChildren() const {
     return {};
 }
 
@@ -158,7 +162,7 @@ std::string_view hclang::Assignment::getClassName() const {
     return "Assignment";
 }
 
-std::list<hclang::programData> hclang::Assignment::getChildren() const {
+std::list<hclang::GR> hclang::Assignment::getChildren() const {
     return { mRhs };
 }
 
@@ -173,7 +177,7 @@ std::string_view hclang::VariableDeclaration::getClassName() const {
     return "VariableDeclaration";
 }
 
-std::list<hclang::programData> hclang::VariableDeclaration::getChildren() const {
+std::list<hclang::GR> hclang::VariableDeclaration::getChildren() const {
     return {};
 }
 
@@ -200,7 +204,7 @@ std::string_view hclang::DeclarationReference::getClassName() const {
     return "DeclarationReference";
 }
 
-std::list<hclang::programData> hclang::DeclarationReference::getChildren() const {
+std::list<hclang::GR> hclang::DeclarationReference::getChildren() const {
     return {  };
 }
 
@@ -220,7 +224,7 @@ std::string_view hclang::Cast::getClassName() const {
     return "Cast";
 }
 
-std::list<hclang::programData> hclang::Cast::getChildren() const {
+std::list<hclang::GR> hclang::Cast::getChildren() const {
     return { mExpr };
 }
 
@@ -241,7 +245,7 @@ hclang::VariableInitialization::VariableInitialization(const hclang::Identifier 
 void hclang::VariableInitialization::setLexeme(const hclang::Lexeme &l) {
     mLexeme = l;
     if(mRhs) {
-        mLexeme |= mRhs->getLexemeConst();
+        *mLexeme |= mRhs->getLexemeConst();
     }
 }
 
@@ -255,13 +259,22 @@ std::string_view hclang::VariableInitialization::getClassName() const {
     return "VariableInitialization";
 }
 
-std::list<hclang::programData> hclang::VariableInitialization::getChildren() const {
+std::list<hclang::GR> hclang::VariableInitialization::getChildren() const {
     return { mRhs };
 }
 
 // Program.
 
-void hclang::Program::add(hclang::programData pd) {
+void hclang::Program::add(hclang::cmpdStmnt pd) {
+    if(mStatements.empty() || std::holds_alternative<funcDefn>(mStatements.back())) {
+        mStatements.push_back(pd);
+    }
+    else {
+        std::get<cmpdStmnt>(mStatements.back())->add(pd);
+    }
+}
+
+void hclang::Program::add(hclang::funcDefn pd) {
     mStatements.push_back(pd);
 }
 
@@ -271,11 +284,13 @@ void hclang::Program::pprint() const {
     }
     fmt::print("+\n");
     struct pdPrintData {
-        hclang::programData pd;
+        hclang::GR pd;
         std::uint32_t indentLevel;
 
-        pdPrintData(hclang::programData pd, std::uint32_t indentLevel)
+        pdPrintData(hclang::GR pd, std::uint32_t indentLevel)
             : pd(pd),indentLevel(indentLevel) {}
+        pdPrintData(hclang::programData pd, std::uint32_t indentLevel)
+            : pd(getPD(pd)),indentLevel(indentLevel) {}
     };
 
     if(mStatements.empty()) {
@@ -284,9 +299,9 @@ void hclang::Program::pprint() const {
 
     std::stack<pdPrintData> stack;
     for(auto i = mStatements.rbegin(); i != mStatements.rend(); i++) {
-        stack.emplace(*i, 1);
+        stack.emplace(hclang::getPD(*i), 1);
     }
-    std::list<hclang::programData> visited = { mStatements.front() };
+    std::list<hclang::GR> visited = { stack.top().pd };
 
     std::uint32_t lastLevel = 0;
     // Depth first traversal of the AST. Print nodes as we pop them.
@@ -317,15 +332,29 @@ std::string_view hclang::Program::getClassName() const {
     return "Program";
 }
 
-std::list<hclang::programData> hclang::Program::getChildren() const {
-    return mStatements;
+std::list<hclang::GR> hclang::Program::getChildren() const {
+    std::list<GR> result;
+    for(auto &pd : mStatements) {
+        result.push_front(getPD(pd));
+    }
+    return result;
 }
 
 // CompoundStatement.
 
-
 void hclang::CompoundStatement::add(hclang::stmnt statement) {
     mStatementList.push_back(statement);
+    setLexeme(statement->getLexemeConst());
+}
+
+void hclang::CompoundStatement::add(hclang::cmpdStmnt statement) {
+    mStatementList.insert(mStatementList.end(),
+                          statement->mStatementList.begin(),
+                          statement->mStatementList.end());
+    // Assumes that `statements` lexeme is properly set.
+    if(!statement->mStatementList.empty()) {
+        setLexeme(statement->mStatementList.back()->getLexemeConst());
+    }
 }
 
 void hclang::CompoundStatement::pprint() const {
@@ -336,8 +365,12 @@ std::string_view hclang::CompoundStatement::getClassName() const {
     return "CompoundStatement";
 }
 
-std::list<hclang::programData> hclang::CompoundStatement::getChildren() const {
-    return {};
+std::list<hclang::GR> hclang::CompoundStatement::getChildren() const {
+    std::list<hclang::GR> result;
+    for(const auto &statement : mStatementList) {
+        result.push_back(statement);
+    }
+    return result;
 }
 
 // BinaryOperator.
@@ -351,7 +384,7 @@ std::string_view hclang::BinaryOperator::getClassName() const {
     return "BinaryOperator";
 }
 
-std::list<hclang::programData> hclang::BinaryOperator::getChildren() const {
+std::list<hclang::GR> hclang::BinaryOperator::getChildren() const {
     return { mLhs, mRhs };
 }
 
@@ -366,7 +399,7 @@ std::string_view hclang::UnaryOperator::getClassName() const {
     return "UnaryOperator";
 }
 
-std::list<hclang::programData> hclang::UnaryOperator::getChildren() const {
+std::list<hclang::GR> hclang::UnaryOperator::getChildren() const {
     return { mExpr };
 }
 
@@ -381,8 +414,8 @@ std::string_view hclang::DeclarationStatement::getClassName() const {
     return "DeclarationStatement";
 }
 
-std::list<hclang::programData> hclang::DeclarationStatement::getChildren() const {
-    std::list<hclang::programData> result;
+std::list<hclang::GR> hclang::DeclarationStatement::getChildren() const {
+    std::list<hclang::GR> result;
     for(const auto i : mDecls) {
         result.push_front(i);
     }
@@ -399,7 +432,7 @@ std::string_view hclang::FunctionDefinition::getClassName() const {
     return "FunctionDefinition";
 }
 
-std::list<hclang::programData> hclang::FunctionDefinition::getChildren() const {
+std::list<hclang::GR> hclang::FunctionDefinition::getChildren() const {
     return { };
 }
 
@@ -413,7 +446,7 @@ std::string_view hclang::FunctionDeclaration::getClassName() const {
     return "FunctionDeclaration";
 }
 
-std::list<hclang::programData> hclang::FunctionDeclaration::getChildren() const {
+std::list<hclang::GR> hclang::FunctionDeclaration::getChildren() const {
     return { mDefinition };
 }
 
@@ -429,9 +462,9 @@ std::string_view hclang::If::getClassName() const {
     return "IfStatement";
 }
 
-std::list<hclang::programData> hclang::If::getChildren() const {
+std::list<hclang::GR> hclang::If::getChildren() const {
     // TODO elifs
-    return { scastPD(mConditional), scastPD(mBody), scastPD(mElseBody) };
+    return { scastGR(mConditional), scastGR(mBody), scastGR(mElseBody) };
 }
 
 // Functions.

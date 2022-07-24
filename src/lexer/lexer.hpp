@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fmt/format.h>
 #include <fmt/color.h>
+#include <optional>
 
 #include "../hclang.hpp"
 #include "../config.hpp"
@@ -208,16 +209,39 @@ namespace fmt {
 
         template<typename FormatContext>
         auto format(const hclang::Lexeme &l, FormatContext &ctx) {
-            return
-                fmt::format_to(ctx.out(), "<line:{}:{},col:{}:{}>",
-                               __fileposPrinter{l.getStartLineNumber()},
-                               __fileposPrinter{l.getEndLineNumber()},
-                               __fileposPrinter{l.getStartColNumber()},
-                               __fileposPrinter{l.getEndColNumber()});
+            return fmt::format_to(ctx.out(), "<line:{}:{},col:{}:{}>",
+                                  __fileposPrinter{l.getStartLineNumber()},
+                                  __fileposPrinter{l.getEndLineNumber()},
+                                  __fileposPrinter{l.getStartColNumber()},
+                                  __fileposPrinter{l.getEndColNumber()});
         }
     };
 
     MAKE_FMT_STYLE_SPEC(hclang::Lexeme)
+}
+
+namespace fmt {
+    template<>
+    struct fmt::formatter<std::optional<hclang::Lexeme>>
+    {
+        template<typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+
+        template<typename FormatContext>
+        auto format(const std::optional<hclang::Lexeme> &ol, FormatContext &ctx) {
+            if(ol) {
+                const auto &l = *ol;
+                return fmt::format_to(ctx.out(), "{}", l);
+            }
+            return fmt::format_to(ctx.out(), "<line:{}:{},col:{}:{}>",
+                                  __fileposPrinter{ hclang::noLineNum },
+                                  __fileposPrinter{ hclang::noLineNum },
+                                  __fileposPrinter{ hclang::noLineNum },
+                                  __fileposPrinter{ hclang::noLineNum });
+        }
+    };
+
+    MAKE_FMT_STYLE_SPEC(std::optional<hclang::Lexeme>)
 }
 
 #endif /* SLANG_TOKEN_HPP */

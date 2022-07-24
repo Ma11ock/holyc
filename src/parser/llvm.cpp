@@ -589,8 +589,9 @@ hclang::LLV hclang::VariableInitialization::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::Program::toLLVM(parserContext &pc) const {
     for(const auto &pd : mStatements) {
-        if(pd != nullptr) {
-            pd->toLLVM(pc);
+        auto realPd = getPD(pd);
+        if(realPd != nullptr) {
+            realPd->toLLVM(pc);
         }
     }
     return nullptr;
@@ -633,5 +634,12 @@ hclang::LLV hclang::FunctionDefinition::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
+    return nullptr;
+}
+
+hclang::LLV hclang::CompoundStatement::toLLVM(parserContext &pc) const {
+    for(const auto &statement : mStatementList) {
+        statement->toLLVM(pc);
+    }
     return nullptr;
 }

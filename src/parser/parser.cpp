@@ -23,7 +23,7 @@ using namespace std::string_view_literals;
 class ParseTreeImpl : public hclang::ParseTree {
 public:
     ParseTreeImpl(std::shared_ptr<hclang::Lexer> lexer, const hclang::Config &config)
-        : hclang::ParseTree(lexer, config),mLookAhead(),mReduceQueue({})
+        : hclang::ParseTree(lexer, config),mLookAhead(),mReduceQueue()
           { }
     virtual ~ParseTreeImpl() = default;
 
@@ -70,12 +70,12 @@ protected:
     /// Current lookahead object.
     hclang::Lexeme mLookAhead;
     /// Queue used for lookahead tokens read when reducing.
-    std::list<hclang::Lexeme> mReduceQueue;
+    std::queue<hclang::Lexeme> mReduceQueue;
     /// Symbol table generated during parsing.
     hclang::SymbolTable<hclang::decl> mSymbolTable;
 
     // Private parsing functions.
-    inline void pushTokenToQueue(const hclang::Lexeme &l) { mReduceQueue.push_back(l); }
+    inline void pushTokenToQueue(const hclang::Lexeme &l) { mReduceQueue.push(l); }
     inline void pushTokenToQueue() { pushTokenToQueue(mLookAhead); }
     inline hclang::Lexeme getRealNextLookahead() {
         mLookAhead = mLexer->pull();
@@ -132,8 +132,8 @@ std::shared_ptr<hclang::ParseTree> hclang::ParseTree::parseSyntax(const hclang::
 
 hclang::Lexeme ParseTreeImpl::getNextLookahead() {
     if(!mReduceQueue.empty()) {
-        mLookAhead = mReduceQueue.back();
-        mReduceQueue.pop_back();
+        mLookAhead = mReduceQueue.front();
+        mReduceQueue.pop();
     } else {
         mLookAhead = mLexer->pull();
     }
@@ -142,7 +142,6 @@ hclang::Lexeme ParseTreeImpl::getNextLookahead() {
         throw std::runtime_error("TODO pull"); // TODO make a custom exception class for this.
     }
 
-    fmt::print("GNLA: {}\n", mLookAhead.getText());
     return mLookAhead;
 }
 
@@ -178,20 +177,18 @@ hclang::GR ParseTreeImpl::programStart() {
         // Determine if a function definition or a declaration.
     {
         pushTokenToQueue();
-        parseRet(declarationStatementStart());
-        // pushTokenToQueue();
-        // for(hclang::Lexeme curLex; (curLex = getRealNextLookahead()) != TT::LCurlyBracket;
-        //     pushTokenToQueue(curLex)) {
-        //     switch(curLex.getTokenType()) {
-        //     case TT::Equals:
-        //     case TT::Semicolon:
-        //         pushTokenToQueue(curLex);
-        //         parseRet(declarationStatementStart());
-        //         break;
-        //     default:
-        //         break;
-        //     }
-        // }
+        for(hclang::Lexeme curLex; (curLex = getRealNextLookahead()) != TT::LCurlyBracket;
+            pushTokenToQueue(curLex)) {
+            switch(curLex.getTokenType()) {
+            case TT::Equals:
+            case TT::Semicolon:
+                pushTokenToQueue(curLex);
+                parseRet(declarationStatementStart());
+                break;
+            default:
+                break;
+            }
+        }
         // parseRet(functionDefinitionStart());
     }
     case TT::Semicolon:

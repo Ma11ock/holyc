@@ -4,13 +4,10 @@
 ; and Section A13 of The C programming language, 2nd edition, by Brian W. Kernighan and Dennis M. Ritchie,Prentice Hall, 1988.
 ; The structure here provides the class structure for parser/ast.hpp.
 
-<program> ::= <program> <external-declaration>
+<program> ::= <program> <function-definition>
           | <program> <compound-statement>
-          | <external-declaration>
+          | <function-definition>
           | <compound-statement>
-
-<external-declaration> ::= <function-definition>
-                       |  <declaration>
 
 <function-definition> ::= <declaration-specifier-list> <declarator> <declaration-list> <coumpound-statement>
                       | <declarator> <declaration-list> <coumpound-statement>

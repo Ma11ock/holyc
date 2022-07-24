@@ -623,3 +623,15 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
 hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
     return readLvalue<std::uint64_t>(mDeclRef, pc.symbolTable);
 }
+
+hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
+    return nullptr;
+}
+
+hclang::LLV hclang::FunctionDefinition::toLLVM(parserContext &pc) const {
+    return nullptr;
+}
+
+hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
+    return nullptr;
+}

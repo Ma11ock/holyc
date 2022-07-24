@@ -302,6 +302,9 @@ void hclang::Program::pprint() const {
 
         auto children = curObj->getChildren();
         for(auto c = children.rbegin(); c != children.rend(); c++) {
+            if(*c == nullptr) {
+                continue;
+            }
             if(std::find(visited.begin(), visited.end(), *c) == visited.end()) {
                 visited.push_front(*c);
                 stack.emplace(*c, indentLevel + 1);
@@ -384,6 +387,51 @@ std::list<hclang::programData> hclang::DeclarationStatement::getChildren() const
         result.push_front(i);
     }
     return result;
+}
+
+// FunctionDefinition.
+
+void hclang::FunctionDefinition::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::FunctionDefinition::getClassName() const {
+    return "FunctionDefinition";
+}
+
+std::list<hclang::programData> hclang::FunctionDefinition::getChildren() const {
+    return { };
+}
+
+// FunctionDeclaration.
+
+void hclang::FunctionDeclaration::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::FunctionDeclaration::getClassName() const {
+    return "FunctionDeclaration";
+}
+
+std::list<hclang::programData> hclang::FunctionDeclaration::getChildren() const {
+    return { mDefinition };
+}
+
+// If.
+
+void hclang::If::pprint() const {
+    printDefault();
+    fmt::print(" {}, elifs: {}", mElseBody ? "has else" : "no else",
+               mElseIfs.size());
+}
+
+std::string_view hclang::If::getClassName() const {
+    return "IfStatement";
+}
+
+std::list<hclang::programData> hclang::If::getChildren() const {
+    // TODO elifs
+    return { scastPD(mConditional), scastPD(mBody), scastPD(mElseBody) };
 }
 
 // Functions.

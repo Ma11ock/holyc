@@ -13,7 +13,7 @@
 #include <cstdint>
 #include <list>
 #include <unordered_map>
-#include <variant>
+#include <optional>
 
 #include "type.hpp"
 #include "../hclang.hpp"
@@ -327,6 +327,10 @@ namespace hclang {
         Expression(const hclang::Lexeme &l) : GrammarRule(l),mType() {}
         /// Default destructor. Defaulted.
         virtual ~Expression() = default;
+
+        inline typeInfo getType() const {
+            return mType;
+        }
     protected:
         /// Type of integer (should only intrinsic of size > 0 or pointer).
         typeInfo mType;
@@ -670,6 +674,92 @@ namespace hclang {
 
     using cmpdStmnt = std::shared_ptr<CompoundStatement>;
 
+    class If : public Statement {
+    public:
+        If(exp conditional, cmpdStmnt body, std::list<std::shared_ptr<If>> elIfs,
+           cmpdStmnt elseBody, const Lexeme &l = Lexeme())
+            : Statement(l),mConditional(conditional),mBody(body),mElseIfs(elIfs),
+              mElseBody(elseBody) { }
+        virtual ~If() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<programData> getChildren() const;
+    protected:
+        /// Boolean expression.
+        exp mConditional;
+        /// Body of the if statement.
+        cmpdStmnt mBody;
+        /// Else ifs.
+        std::list<std::shared_ptr<If>> mElseIfs;
+        /// Body of the optional "else" statement.
+        cmpdStmnt mElseBody;
+    };
+
+    using ifStmnt = std::shared_ptr<If>;
+
+    template<typename... Args>
+    inline ifStmnt makeIf(Args &&...args) {
+        return std::make_shared<If>(std::forward<Args>(args)...);
+    }
+
+    /**
+     * Dummy class for Declaration productions.
+     */
+    class Declaration : public GrammarRule {
+    public:
+        /// Defaulted constructor.
+        Declaration() : mId(""),mType(),mStorageClass() {}
+        /**
+         * Value constructor. Set the lexeme.
+         */
+        Declaration(const Lexeme &l)
+            : GrammarRule(l),mId(l),mType(),mStorageClass() { }
+        /**
+         * Value constructor. Set the lexeme.
+         */
+        Declaration(const Identifier &id, typeInfo type,
+                    StorageClass sclass = StorageClass::Default, const Lexeme &l = Lexeme())
+            : GrammarRule(l),mId(id),mType(type),mStorageClass(sclass) { }
+        /// Destructor. Default.
+        virtual ~Declaration() = default;
+        const inline Identifier &getIdRef() const { return mId; }
+
+        inline typeInfo getType() const {
+            return mType;
+        }
+
+        inline StorageClass getStorageClass() const {
+            return mStorageClass;
+        }
+    protected:
+        /// Identifier of the declared variable.
+        Identifier mId;
+        /// Type of thing being declared.
+        typeInfo mType;
+        /// Storage class of thing being declared.
+        StorageClass mStorageClass;
+    };
+
+    /**
+     * Alias to a shared pointer of `Declaration`.
+     * @see Declaration
+     */
+    using decl = std::shared_ptr<Declaration>;
+
     class FunctionDefinition : public GrammarRule {
     public:
         FunctionDefinition() = default;
@@ -691,38 +781,48 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<programData> getChildren() const;
-    };
-
-    /**
-     * Dummy class for Declaration productions.
-     */
-    class Declaration : public GrammarRule {
-    public:
-        /// Defaulted constructor.
-        Declaration() : mId("") {}
-        /**
-         * Value constructor. Set the lexeme.
-         */
-        Declaration(const Lexeme &l)
-            : GrammarRule(l),mId(l) { }
-        /**
-         * Value constructor. Set the lexeme.
-         */
-        Declaration(const Identifier &id, const Lexeme &l)
-            : GrammarRule(l),mId(id) { }
-        /// Destructor. Default.
-        virtual ~Declaration() = default;
-        const inline Identifier &getIdRef() const { return mId; }
     protected:
-        /// Identifier of the declared variable.
-        Identifier mId;
     };
 
-    /**
-     * Alias to a shared pointer of `Declaration`.
-     * @see Declaration
-     */
-    using decl = std::shared_ptr<Declaration>;
+    using funcDefn = std::shared_ptr<FunctionDefinition>;
+
+    template<typename... Args>
+    inline funcDefn makeFuncDefn(Args &&...args) {
+        return std::make_shared<FunctionDefinition>(std::forward<Args>(args)...);
+    }
+
+    class FunctionDeclaration : public Declaration {
+    public:
+        FunctionDeclaration() = default;
+        virtual ~FunctionDeclaration() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<programData> getChildren() const;
+    protected:
+        funcDefn mDefinition;
+    };
+
+    using funcDecl = std::shared_ptr<FunctionDeclaration>;
+
+    template<typename... Args>
+    inline funcDecl makeFuncDecl(Args &&...args) {
+        return std::make_shared<FunctionDeclaration>(std::forward<Args>(args)...);
+    }
+
 
     /**
      * VariableDeclaration production rule.
@@ -733,14 +833,9 @@ namespace hclang {
          * Value constructor. Set the ID of the declared variable.
          */
         VariableDeclaration(const Identifier &id, typeInfo type,
+                            StorageClass sclass = StorageClass::Default,
                             const Lexeme &l = Lexeme())
-            : Declaration(id, l),mType(type) { }
-        /**
-         * Value constructor. Set the lexeme.
-         * @param lexeme Value to set `lexeme` to.
-         */
-        VariableDeclaration(typeInfo type, const Lexeme &lexeme)
-            : Declaration(lexeme),mType(type) {}
+            : Declaration(id, type, sclass, l) { }
         /// Destructor. Default.
         virtual ~VariableDeclaration() = default;
         /**
@@ -760,10 +855,6 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<programData> getChildren() const;
-
-    protected:
-        /// Type information.
-        typeInfo mType;
     };
 
     /**
@@ -920,6 +1011,20 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<programData> getChildren() const;
+
+        inline std::optional<typeInfo> getType() const {
+            if(mDecls.empty()) {
+                return std::nullopt;
+            }
+            return mDecls.front()->getType();
+        }
+
+        inline std::optional<StorageClass> getStorageClass() const {
+            if(mDecls.empty()) {
+                return std::nullopt;
+            }
+            return mDecls.front()->getStorageClass();
+        }
     protected:
         /// List of declarations that make this statement.
         std::list<decl> mDecls;
@@ -1038,6 +1143,11 @@ namespace hclang {
      * @param op Operator to get precedence of.
      */
     int getPrecedence(Operator op);
+
+    template<typename T>
+    inline programData scastPD(std::shared_ptr<T> p) {
+        return std::static_pointer_cast<GrammarRule>(p);
+    }
 }
 
 namespace fmt {

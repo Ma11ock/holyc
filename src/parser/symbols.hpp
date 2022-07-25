@@ -2,7 +2,7 @@
 #define HCLANG_SYMBOLTABLE_HPP
 
 #include <unordered_map>
-#include <stack>
+#include <list>
 #include <cstdint>
 
 #include "ast.hpp"
@@ -16,38 +16,68 @@ namespace hclang {
         }
     };
 
+    /**
+     *
+     * Note: T needs to be a poniter (or at least nullable).
+     */
     template<typename T>
     class SymbolTable {
     public:
-        SymbolTable() : mTableStack({{}}) {  }
+        SymbolTable() : mTableStack({}) {  }
         ~SymbolTable() = default;
 
-        inline void popTable() { mTableStack.pop(); }
-        inline void pushTable() { mTableStack.emplace(); }
+        inline void popTable() {
+            mTableStack.pop_back();
+        }
+        inline void pushTable() {
+            mTableStack.emplace_back();
+        }
 
-        inline void add(const Identifier &id, T t) { mTableStack.top()[id] = t; }
+        inline void add(const Identifier &id, T t) {
+            mTableStack.back()[id] = t;
+        }
 
         inline bool contains(std::string_view id) const {
             return contains(Identifier(id));
         }
 
         inline bool contains(const Identifier &id) const {
-            return mTableStack.top().count(id) != 0;
+            for(const auto &table : mTableStack) {
+                if(table.count(id) != 0) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         inline T find(const Identifier &id) const {
-            auto i = mTableStack.top().find(id);
-            if(i == mTableStack.top().end()) {
-                return nullptr;
+            // Find most recent object.
+            for(const auto &table : mTableStack) {
+                auto i = table.find(id);
+                if(i != table.end()) {
+                    return i->second;
+                }
             }
-            return i->second;
+            return nullptr;
+        }
+
+        inline T &operator[](const std::string_view &str) {
+            return (*this)[Identifier(str)];
         }
 
         inline T &operator[](const Identifier &id) {
-            return mTableStack.top()[id];
+            // Find most recent object.
+            for(auto &table : mTableStack) {
+                auto i = table.find(id);
+                if(i != table.end()) {
+                    return i->second;
+                }
+            }
+            // If not found, push id to the stack and return the pointer.
+            return mTableStack.back()[id];
         }
     private:
-        std::stack<std::unordered_map<Identifier, T, identifierHashFun>> mTableStack;
+        std::list<std::unordered_map<Identifier, T, identifierHashFun>> mTableStack;
     };
 
 }  // hclang

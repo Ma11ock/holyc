@@ -266,6 +266,9 @@ std::list<hclang::GR> hclang::VariableInitialization::getChildren() const {
 // Program.
 
 void hclang::Program::add(hclang::cmpdStmnt pd) {
+    if(pd == nullptr) {
+        return;
+    }
     if(mStatements.empty() || std::holds_alternative<funcDefn>(mStatements.back())) {
         mStatements.push_back(pd);
     }
@@ -275,6 +278,9 @@ void hclang::Program::add(hclang::cmpdStmnt pd) {
 }
 
 void hclang::Program::add(hclang::funcDefn pd) {
+    if(pd == nullptr) {
+        return;
+    }
     mStatements.push_back(pd);
 }
 
@@ -343,11 +349,17 @@ std::list<hclang::GR> hclang::Program::getChildren() const {
 // CompoundStatement.
 
 void hclang::CompoundStatement::add(hclang::stmnt statement) {
+    if(statement == nullptr) {
+        return;
+    }
     mStatementList.push_back(statement);
     setLexeme(statement->getLexemeConst());
 }
 
 void hclang::CompoundStatement::add(hclang::cmpdStmnt statement) {
+    if(!statement || statement->isEmpty()) {
+        return;
+    }
     mStatementList.insert(mStatementList.end(),
                           statement->mStatementList.begin(),
                           statement->mStatementList.end());

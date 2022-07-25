@@ -670,6 +670,9 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
+        bool isEmpty() const {
+            return mStatementList.empty();
+        }
 
     protected:
         statementList mStatementList;

@@ -255,6 +255,12 @@ llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id
 }
 
 template<typename T>
+static inline llvm::Value *generateEntryBlockAlloca(std::string_view id,
+                                                    hclang::SymbolTable<llvm::Value*> &symbols) {
+    return generateEntryBlockAlloca<T>(hclang::Identifier(id), symbols);
+}
+
+template<typename T>
 static inline llvm::Value *readLvalue(std::string_view name,
                                       hclang::SymbolTable<llvm::Value*> &symbols) {
     static_assert(true, "Cannot read Lvalue for type");
@@ -463,6 +469,9 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 
     // AST->LLVM.
     SymbolTable<llvm::Value*> symbolTable;
+    symbolTable.pushTable();
+    // Make "result" symbol.
+    generateEntryBlockAlloca<std::int32_t>("result", symbolTable);
     parserContext pc { symbolTable };
     mProgram.toLLVM(pc);
 
@@ -638,8 +647,10 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::CompoundStatement::toLLVM(parserContext &pc) const {
+    pc.symbolTable.pushTable();
     for(const auto &statement : mStatementList) {
         statement->toLLVM(pc);
     }
+    pc.symbolTable.popTable();
     return nullptr;
 }

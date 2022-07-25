@@ -483,6 +483,12 @@ std::string_view hclang::operatorToString(hclang::Operator op) {
     case O::Divide:
         return "/ (Division)";
         break;
+    case O::Leftparen:
+        return "( (Left paren)";
+        break;
+    case O::Rightparen:
+        return ") (Right paren)";
+        break;
     default:
         break;
     }

@@ -56,6 +56,10 @@ protected:
          * Note: assumes that the expression fed to the parser is valid.
          */
         hclang::exp reduce();
+
+        bool isEmpty() const {
+            return mOperatorStack.empty() && mExpressionQueue.empty();
+        }
     protected:
         /// Stack to help converting infix notation to postfix notation
         /// for the operators.
@@ -95,8 +99,11 @@ protected:
     hclang::declStmnt declarationStatementStart();
     hclang::cmpdStmnt compoundStatementStart();
 
-    hclang::exp expressionStart(hclang::TokenType endToken,
-                                bool pushEndToken = true);
+    hclang::exp expressionCompoundStart();
+    hclang::exp expressionArgumentStart();
+    void expressionStart(YardShunter &ys);
+
+    hclang::ifStmnt ifStart();
 
 };
 
@@ -146,6 +153,10 @@ hclang::Lexeme ParseTreeImpl::getNextLookahead() {
     }
 
     return mLookAhead;
+}
+
+hclang::ifStmnt ParseTreeImpl::ifStart() {
+    return nullptr;
 }
 
 hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart() {
@@ -310,7 +321,7 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
 hclang::decl ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
                                                            hclang::StorageClass sclass,
                                                            hclang::Identifier id) {
-    pushTableRet(hclang::makeVarInit(id, info, expressionStart(TT::Semicolon, true)));
+    pushTableRet(hclang::makeVarInit(id, info, expressionCompoundStart()));
 }
 
 hclang::declStmnt ParseTreeImpl::declarationStatementStart() {
@@ -335,89 +346,109 @@ hclang::declStmnt ParseTreeImpl::declarationStatementStart() {
     throw std::runtime_error(fmt::format("Got token {}", mLookAhead.getText()));
 }
 
-hclang::exp ParseTreeImpl::expressionStart(hclang::TokenType endToken,
-                                           bool pushEndToken) {
+void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
+    switch(mLookAhead.getTokenType()) {
+    case TT::IntegerConstant:
+        ys.push(std::make_shared<hclang::IntegerConstant>(mLookAhead));
+        break;
+    case TT::Identifier: // TODO could be function, need further parsing.
+        ys.push(hclang::makeDeclRef(hclang::Identifier(mLookAhead),
+                                    hclang::DeclarationReference::Type::LValue,
+                                    mSymbolTable, mLookAhead));
+        break;
+    case TT::Star:
+        // TODO unary *.
+        ys.push(ys.lastObjWasOp() ? O::Dereference : O::Multiply, mLookAhead);
+        break;
+    case TT::Divide:
+        ys.push(O::Divide, mLookAhead);
+        break;
+    case TT::Plus:
+        if(!ys.lastObjWasOp()) {
+            ys.push(O::Add, mLookAhead);
+        }
+        // Ignore positive.
+        break;
+    case TT::Minus:
+        ys.push(ys.lastObjWasOp() ? O::Negative : O::Subtract, mLookAhead);
+        break;
+    case TT::MinusMinus:
+        ys.push(ys.lastObjWasOp() ? O::PrefixMinusMinus : O::PostfixMinusMinus, mLookAhead);
+        break;
+    case TT::PlusPlus:
+        ys.push(ys.lastObjWasOp() ? O::PrefixPlusPlus : O::PostfixPlusPlus, mLookAhead);
+        break;
+    case TT::Ampersand:
+        ys.push(ys.lastObjWasOp() ? O::AddressOf : O::BitwiseAnd, mLookAhead);
+        break;
+    case TT::BitwiseOr:
+        ys.push(O::BitwiseOr, mLookAhead);
+        break;
+    case TT::BitwiseNot:
+        ys.push(O::BitwiseNot, mLookAhead);
+        break;
+    case TT::AndEqual:
+        ys.push(O::AndAssignment, mLookAhead);
+        break;
+    case TT::OrEqual:
+        ys.push(O::OrAssignment, mLookAhead);
+        break;
+    case TT::XorEqual:
+        ys.push(O::XorAssignment, mLookAhead);
+        break;
+    case TT::LeftshiftEqual:
+        ys.push(O::LeftshiftAssignment, mLookAhead);
+        break;
+    case TT::RightshiftEqual:
+        ys.push(O::RightshiftAssignment, mLookAhead);
+        break;
+    case TT::PlusEqual:
+        ys.push(O::AddAssignment, mLookAhead);
+        break;
+    case TT::MinusEqual:
+        ys.push(O::SubtractAssignment, mLookAhead);
+        break;
+    case TT::TimesEqual:
+        ys.push(O::MultiplyAssignment, mLookAhead);
+        break;
+    case TT::DividedByEqual:
+        ys.push(O::DivideAssignment, mLookAhead);
+        break;
+    case TT::ModuloEqual:
+        ys.push(O::ModuloAssignment, mLookAhead);
+        break;
+    case TT::Lparen:
+        ys.push(O::Leftparen, mLookAhead);
+        break;
+    case TT::Rparen:
+        ys.push(O::Rightparen, mLookAhead);
+        break;
+    default:
+        break;
+    }
+}
+
+hclang::exp ParseTreeImpl::expressionArgumentStart() {
     YardShunter ys;
     // Left recursion.
-    while(getNextLookahead() != endToken) {
-        switch(mLookAhead.getTokenType()) {
-        case TT::IntegerConstant:
-            ys.push(std::make_shared<hclang::IntegerConstant>(mLookAhead));
-            break;
-        case TT::Identifier: // TODO could be function, need further parsing.
-            ys.push(hclang::makeDeclRef(hclang::Identifier(mLookAhead),
-                                        hclang::DeclarationReference::Type::LValue,
-                                        mSymbolTable, mLookAhead));
-            break;
-        case TT::Star:
-            // TODO unary *.
-            ys.push(ys.lastObjWasOp() ? O::Dereference : O::Multiply, mLookAhead);
-            break;
-        case TT::Divide:
-            ys.push(O::Divide, mLookAhead);
-            break;
-        case TT::Plus:
-            if(!ys.lastObjWasOp()) {
-                ys.push(O::Add, mLookAhead);
-            }
-            // Ignore positive.
-            break;
-        case TT::Minus:
-            ys.push(ys.lastObjWasOp() ? O::Negative : O::Subtract, mLookAhead);
-            break;
-        case TT::MinusMinus:
-            ys.push(ys.lastObjWasOp() ? O::PrefixMinusMinus : O::PostfixMinusMinus, mLookAhead);
-            break;
-        case TT::PlusPlus:
-            ys.push(ys.lastObjWasOp() ? O::PrefixPlusPlus : O::PostfixPlusPlus, mLookAhead);
-            break;
-        case TT::Ampersand:
-            ys.push(ys.lastObjWasOp() ? O::AddressOf : O::BitwiseAnd, mLookAhead);
-            break;
-        case TT::BitwiseOr:
-            ys.push(O::BitwiseOr, mLookAhead);
-            break;
-        case TT::BitwiseNot:
-            ys.push(O::BitwiseNot, mLookAhead);
-            break;
-        case TT::AndEqual:
-            ys.push(O::AndAssignment, mLookAhead);
-            break;
-        case TT::OrEqual:
-            ys.push(O::OrAssignment, mLookAhead);
-            break;
-        case TT::XorEqual:
-            ys.push(O::XorAssignment, mLookAhead);
-            break;
-        case TT::LeftshiftEqual:
-            ys.push(O::LeftshiftAssignment, mLookAhead);
-            break;
-        case TT::RightshiftEqual:
-            ys.push(O::RightshiftAssignment, mLookAhead);
-            break;
-        case TT::PlusEqual:
-            ys.push(O::AddAssignment, mLookAhead);
-            break;
-        case TT::MinusEqual:
-            ys.push(O::SubtractAssignment, mLookAhead);
-            break;
-        case TT::TimesEqual:
-            ys.push(O::MultiplyAssignment, mLookAhead);
-            break;
-        case TT::DividedByEqual:
-            ys.push(O::DivideAssignment, mLookAhead);
-            break;
-        case TT::ModuloEqual:
-            ys.push(O::ModuloAssignment, mLookAhead);
-            break;
-        default:
-            break;
-        }
+    while(getNextLookahead() != TT::Rparen && !ys.isEmpty()) {
+        expressionStart(ys);
     }
 
-    if(pushEndToken) {
-        pushTokenToFront();
+    ys.push(O::Rightparen, mLookAhead);
+
+    // Reduce remaining operations.
+    return ys.reduce();
+}
+
+hclang::exp ParseTreeImpl::expressionCompoundStart() {
+    YardShunter ys;
+    // Left recursion.
+    while(getNextLookahead() != TT::Semicolon) {
+        expressionStart(ys);
     }
+
+    pushTokenToFront();
 
     // Reduce remaining operations.
     return ys.reduce();
@@ -435,6 +466,22 @@ void ParseTreeImpl::YardShunter::push(hclang::exp expr) {
 
 void ParseTreeImpl::YardShunter::push(hclang::Operator op,
                                       const hclang::Lexeme &l) {
+    if(op == O::Rightparen) {
+        if(mOperatorStack.empty()) {
+            throw std::runtime_error("paren pop empty");
+        }
+        operatorLex o = mOperatorStack.top();
+        while(o.op != O::Leftparen) {
+            mOperatorStack.pop();
+            if(mOperatorStack.empty()) {
+                throw std::runtime_error("paren pop");
+            }
+            mExpressionQueue.push(o);
+            o = mOperatorStack.top();
+        }
+        return;
+    }
+
     auto maybePoppedOperator = pushOp(op, l);
 
     if(!maybePoppedOperator) {
@@ -449,13 +496,14 @@ void ParseTreeImpl::YardShunter::push(hclang::Operator op,
 std::optional<ParseTreeImpl::operatorLex>
 ParseTreeImpl::YardShunter::pushOp(hclang::Operator op,
                                    const hclang::Lexeme &l) {
-    if(mOperatorStack.empty()) {
+    if(mOperatorStack.empty() || op == O::Leftparen) {
         mOperatorStack.emplace(l, op);
         return std::nullopt;
     }
     // TODO associativity.
     if(auto topOp = mOperatorStack.top();
-       hclang::getPrecedence(topOp.op) >= hclang::getPrecedence(op)) {
+       hclang::getPrecedence(topOp.op) >= hclang::getPrecedence(op) &&
+       topOp.op != O::Leftparen) {
         mOperatorStack.pop();
         mOperatorStack.emplace(l, op);
         return std::make_optional<ParseTreeImpl::operatorLex>(topOp);
@@ -463,6 +511,7 @@ ParseTreeImpl::YardShunter::pushOp(hclang::Operator op,
     mOperatorStack.emplace(l, op);
     return std::nullopt;
 }
+
 
 hclang::exp ParseTreeImpl::YardShunter::reduce() {
     flushOperators();

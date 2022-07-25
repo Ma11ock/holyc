@@ -635,6 +635,31 @@ hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
+    // Create the blocks that will house the if-else code.
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    auto condTrue = llvm::BasicBlock::Create(context, "cond_true", curFn);
+    auto condFalse = llvm::BasicBlock::Create(context, "cond_false", curFn);
+    auto merge = llvm::BasicBlock::Create(context, "ifcont", curFn);
+
+    // Make the branch condition in the entry block.
+    builder.CreateCondBr(mConditional->toLLVM(pc), condTrue, condFalse);
+
+    blockStack.push(condTrue);
+    mBody->toLLVM(pc);
+    builder.CreateBr(merge);
+    blockStack.pop();
+
+    // TODO wrong. You have to check else ifs before going to else.
+
+    // Else
+    if(mElseBody) {
+        blockStack.push(condFalse);
+        mElseBody->toLLVM(pc);
+        builder.CreateBr(merge);
+        blockStack.pop();
+    }
+
+    blockStack.push(merge);
     return nullptr;
 }
 

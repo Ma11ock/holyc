@@ -157,6 +157,11 @@ namespace hclang {
     };
 
     std::string_view stringifyTokenType(TokenType type);
+
+    bool isKeyword(TokenType type);
+    bool isSpecifier(TokenType type);
+    bool isOperator(TokenType type);
+    bool isType(TokenType type);
 }
 
 namespace fmt {
@@ -243,5 +248,22 @@ namespace fmt {
 
     MAKE_FMT_STYLE_SPEC(std::optional<hclang::Lexeme>)
 }
+
+namespace fmt {
+    template<>
+    struct fmt::formatter<hclang::TokenType>
+    {
+        template<typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+
+        template<typename FormatContext>
+        auto format(const hclang::TokenType &t, FormatContext &ctx) {
+            return fmt::format_to(ctx.out(), "{}", hclang::stringifyTokenType(t));
+        }
+    };
+
+    MAKE_FMT_STYLE_SPEC(hclang::TokenType)
+}
+
 
 #endif /* SLANG_TOKEN_HPP */

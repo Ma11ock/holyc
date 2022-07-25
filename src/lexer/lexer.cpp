@@ -538,3 +538,100 @@ hclang::Identifier::Identifier(const hclang::Lexeme &lexeme) : mId("") {
     }
     mId = lexeme.getText();
 }
+
+bool hclang::isType(hclang::TokenType type) {
+    switch(type) {
+    case TT::I0i:
+    case TT::I8i:
+    case TT::I16i:
+    case TT::I32i:
+    case TT::I64i:
+    case TT::U0i:
+    case TT::U8i:
+    case TT::U16i:
+    case TT::U32i:
+    case TT::U64i:
+    case TT::F64:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
+bool hclang::isOperator(hclang::TokenType type) {
+    switch(type) {
+    case TT::Plus:
+    case TT::Minus:
+    case TT::Star:
+    case TT::Divide:
+    case TT::Modulo:
+    case TT::Identifier:
+    case TT::Equals:
+    case TT::LessThan:
+    case TT::LessThanEqual:
+    case TT::GreaterThan:
+    case TT::GreaterThanEqual:
+    case TT::Equality:
+    case TT::Inequality:
+    case TT::Power:
+    case TT::LogicalAnd:
+    case TT::LogicalOr:
+    case TT::LogicalNot:
+    case TT::Ampersand:
+    case TT::BitwiseOr:
+    case TT::BitwiseXor:
+    case TT::BitwiseNot:
+    case TT::BitshiftLeft:
+    case TT::BitshiftRight:
+    case TT::QuestionMark:
+    case TT::Sizeof:
+    case TT::XorEqual:
+    case TT::PlusEqual:
+    case TT::MinusEqual:
+    case TT::TimesEqual:
+    case TT::DividedByEqual:
+    case TT::LeftshiftEqual:
+    case TT::RightshiftEqual:
+    case TT::ModuloEqual:
+    case TT::OrEqual:
+    case TT::AndEqual:
+    case TT::PlusPlus:
+    case TT::MinusMinus:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
+bool hclang::isKeyword(hclang::TokenType type) {
+    switch(type) {
+    case TT::IntegerConstant:
+    case TT::StringConstant:
+    case TT::CharacterConstant:
+    case TT::FloatConstant:
+        return false;
+    default:
+        break;
+    }
+    return !isOperator(type);
+}
+
+bool hclang::isSpecifier(hclang::TokenType type) {
+    switch(type) {
+    case TT::Static:
+    case TT::_Extern:
+    case TT::Extern:
+    case TT::Reg:
+    case TT::Noreg:
+    case TT::Public:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}

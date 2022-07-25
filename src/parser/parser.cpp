@@ -172,12 +172,7 @@ hclang::ifStmnt ParseTreeImpl::ifStart() {
 }
 
 std::list<hclang::ifStmnt> ParseTreeImpl::elseIfStart() {
-    getNextLookahead();
-    switch(mLookAhead.getTokenType()) {
-    case TT::ElseIf:
-        break;
-    }
-    nullptr;
+    return {};
 }
 
 hclang::cmpdStmnt ParseTreeImpl::elseStart() {
@@ -187,29 +182,19 @@ hclang::cmpdStmnt ParseTreeImpl::elseStart() {
 hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
     auto result = hclang::makeCmpdStmnt();
     bool shouldContinue = true;
+    bool bracketed = false;
+    mSymbolTable.pushTable();
 
-    // TODO left recursion has to be in here.
+    if(getNextLookahead() == TT::LCurlyBracket) {
+        bracketed = true;
+    } else {
+        pushTokenToFront();
+    }
+
     while(shouldContinue) {
         getNextLookahead();
-        switch(mLookAhead.getTokenType()) {
-        case TT::U64i:
-        case TT::U32i:
-        case TT::U16i:
-        case TT::U8i:
-        case TT::U0i:
-        case TT::I64i:
-        case TT::I32i:
-        case TT::I16i:
-        case TT::I8i:
-        case TT::I0i:
-        case TT::F64:
-        case TT::Extern:
-        case TT::_Extern:
-        case TT::Public:
-        case TT::Reg:
-        case TT::Noreg:
-        case TT::Static:
-        {
+        auto type = mLookAhead.getTokenType();
+        if(getTypeFrom(mLookAhead) || hclang::isSpecifier(type)) {
             pushTokenToFront();
             for(hclang::Lexeme curLex;
                 (curLex = getRealNextLookahead()) != TT::LCurlyBracket;
@@ -227,20 +212,38 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             }
             nextIsFunc = true;
             shouldContinue = false;
-        }
         end_decl_loop:
+            continue;
+        }
+
+        switch(type) {
+        case TT::RCurlyBracket:
+            if(!bracketed) {
+                // TODO error
+            } else {
+                shouldContinue = false;
+            }
+            break;
         break;
         case TT::Semicolon:
+            break;
+        case TT::If:
+            pushTokenToFront();
+            result->add(ifStart());
+            break;
+        case TT::Identifier:
+            // Check if variable or function.
             break;
         case TT::Eof:
             shouldContinue = false;
             break;
         default:
-            throw std::runtime_error("cmpdstmnt");
+            throw std::runtime_error(fmt::format("cmpstmt: {}, {}", mLookAhead.getTokenType(), mLookAhead.getText()));
             break;
         }
     }
 
+    mSymbolTable.popTable();
     return result;
 }
 
@@ -311,7 +314,7 @@ hclang::decl ParseTreeImpl::declarationSpecifiers(std::optional<hclang::typeInfo
     default:
         break;
     }
-    throw std::runtime_error("declspec");
+    throw std::runtime_error(fmt::format("declspec: {}\n", mLookAhead.getTokenType()));
 }
 
 hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
@@ -451,7 +454,8 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
 hclang::exp ParseTreeImpl::expressionArgumentStart() {
     YardShunter ys;
     // Left recursion.
-    while(getNextLookahead() != TT::Rparen && !ys.isEmpty()) {
+    while(getNextLookahead() != TT::Rparen) {
+        fmt::print("ELA: {}\n", getNextLookahead().getText());
         expressionStart(ys);
     }
 
@@ -488,7 +492,7 @@ void ParseTreeImpl::YardShunter::push(hclang::Operator op,
                                       const hclang::Lexeme &l) {
     if(op == O::Rightparen) {
         if(mOperatorStack.empty()) {
-            throw std::runtime_error("paren pop empty");
+            return;
         }
         operatorLex o = mOperatorStack.top();
         while(o.op != O::Leftparen) {

@@ -710,7 +710,7 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
     protected:
-        /// Boolean expression.
+        /// Boolean expression. TODO implicit comparison to 0.
         exp mConditional;
         /// Body of the if statement.
         cmpdStmnt mBody;

@@ -43,7 +43,7 @@ std::string_view getNextArg<std::string_view>(const argsType &args,
         throw std::invalid_argument("argument to '-o' is missing (expected a file path)");
     }
 
-    return args[curIndex++];
+    return args[++curIndex];
 }
 
 hclang::Config::Config(const argsType &args)

@@ -166,6 +166,67 @@ namespace hclang {
         std::shared_ptr<typeInfo> pointer = nullptr;
         /// HolyC type category.
         HCType type = HCType::U64i;
+
+        inline bool isIntrinsic() const {
+            switch(type) {
+            case HCType::Class:
+            case HCType::Enum:
+            case HCType::Union:
+                return false;
+            default:
+                break;
+            }
+            return true;
+        }
+
+        inline bool operator==(const typeInfo &other) const {
+            return id == other.id && type == other.type
+                && ((pointer && other.pointer) && (*pointer == *pointer));
+        }
+
+        inline bool isFloat() const {
+            return type == HCType::F64;
+        }
+
+        inline bool isSigned() const {
+            switch(type) {
+            case HCType::I0i:
+            case HCType::I8i:
+            case HCType::I16i:
+            case HCType::I32i:
+            case HCType::I64i:
+                return true;
+            default:
+                break;
+            }
+            return false;
+        }
+
+        inline bool isUnsigned() const {
+            switch(type) {
+            case HCType::U0i:
+            case HCType::U8i:
+            case HCType::U16i:
+            case HCType::U32i:
+            case HCType::U64i:
+                return true;
+            default:
+                break;
+            }
+            return false;
+        }
+
+        inline bool isVoid() const {
+            switch(type) {
+            case HCType::U0i:
+            case HCType::I0i:
+                return true;
+                break;
+            default:
+                break;
+            }
+            return false;
+        }
     };
 
     /**
@@ -292,6 +353,8 @@ namespace hclang {
         }
 
         virtual void setLexeme(const Lexeme &l);
+
+        virtual void parseSemantics() = 0;
     protected:
         /// Lexeme that began this production rule.
         std::optional<hclang::Lexeme> mLexeme;
@@ -307,9 +370,35 @@ namespace hclang {
     using GR = std::shared_ptr<GrammarRule>;
 
     /**
+     * Dummy class that represents all statement productions (assignment, if, while, etc.).
+     */
+    class Statement : public GrammarRule {
+    public:
+        /// Defaulted constructor.
+        Statement() = default;
+        /**
+         * Value constructor. Set the lexeme.
+         * @param lexeme Value to set `lexeme` to.
+         */
+        Statement(const Lexeme &l) : GrammarRule(l) {}
+    };
+
+    /**
+     * Alias to shared pointer to `Statement`.
+     * @see Statement
+     */
+    using stmnt = std::shared_ptr<Statement>;
+    /**
+     * Alias to list of shared pointers to `Statement`.
+     * @see Statement
+     * @see stmnt
+     */
+    using statementList = std::list<stmnt>;
+
+    /**
      * Dummy class for HolyC expressions (language constructs that return something).
      */
-    class Expression : public GrammarRule {
+    class Expression : public Statement {
     public:
         /// Default constructor. Defaulted.
         Expression() = default;
@@ -319,12 +408,12 @@ namespace hclang {
          * @param lex Lexeme for the expression.
          */
         Expression(typeInfo type, const Lexeme &lex = Lexeme())
-            : GrammarRule(lex),mType(type) {}
+            : Statement(lex),mType(type) {}
         /**
          * Value constructor. Sets the beginning lexeme.
          * @param l Lexeme that began this grammar production.
          */
-        Expression(const hclang::Lexeme &l) : GrammarRule(l),mType() {}
+        Expression(const hclang::Lexeme &l) : Statement(l),mType() {}
         /// Default destructor. Defaulted.
         virtual ~Expression() = default;
 
@@ -367,6 +456,7 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::list<GR> getChildren() const;
+        virtual void parseSemantics();
     protected:
         /// Type to cast `mExpr` into.
         typeInfo mIntoType;
@@ -387,8 +477,15 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::string_view getClassName() const;
+        virtual void parseSemantics();
     };
 
+    using impCast = std::shared_ptr<ImplicitCast>;
+
+    template<typename... Args>
+    inline impCast makeImpCast(Args &&...args) {
+        return std::make_shared<ImplicitCast>(std::forward<Args>(args)...);
+    }
 
     /**
      * Binary operator language construct (any operator with two arguments).
@@ -422,7 +519,30 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::list<GR> getChildren() const;
-    private:
+
+        virtual void parseSemantics();
+
+        inline bool isAssignment() const {
+            switch(mOp) {
+            case Operator::Assignment:
+            case Operator::AddAssignment:
+            case Operator::LeftshiftAssignment:
+            case Operator::RightshiftAssignment:
+            case Operator::SubtractAssignment:
+            case Operator::MultiplyAssignment:
+            case Operator::DivideAssignment:
+            case Operator::ModuloAssignment:
+            case Operator::OrAssignment:
+            case Operator::AndAssignment:
+            case Operator::XorAssignment:
+                return true;
+                break;
+            default:
+                break;
+            }
+            return false;
+        }
+    protected:
         /// Operator category.
         Operator mOp;
         /// Left hand side of the operator.
@@ -430,6 +550,13 @@ namespace hclang {
         /// Right hand side of the operator.
         exp mRhs;
     };
+
+    using binOp = std::shared_ptr<BinaryOperator>;
+
+    template<typename... Args>
+    inline binOp makeBinOp(Args &&...args) {
+        return std::make_shared<BinaryOperator>(std::forward<Args>(args)...);
+    }
 
     /**
      * Unary operator language construct (any operator with one argument).
@@ -463,76 +590,13 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics();
     private:
         /// Operator category.
         Operator mOp;
         /// Left hand side of the operator.
         exp mExpr;
-    };
-
-    /**
-     * Dummy class that represents all statement productions (assignment, if, while, etc.).
-     */
-    class Statement : public GrammarRule {
-    public:
-        /// Defaulted constructor.
-        Statement() = default;
-        /**
-         * Value constructor. Set the lexeme.
-         * @param lexeme Value to set `lexeme` to.
-         */
-        Statement(const Lexeme &l) : GrammarRule(l) {}
-    };
-
-    /**
-     * Alias to shared pointer to `Statement`.
-     * @see Statement
-     */
-    using stmnt = std::shared_ptr<Statement>;
-    /**
-     * Alias to list of shared pointers to `Statement`.
-     * @see Statement
-     * @see stmnt
-     */
-    using statementList = std::list<stmnt>;
-
-    /**
-     * Assignment statement construct.
-     * NOT used for declaration initialization, as that is not an operator.
-     * The identifier must already be defined.
-     */
-    class Assign : public Statement,Expression {
-    public:
-        /**
-         * Value constructor. Set all children.
-         * @param id Left hand side, variable identifier.
-         * @param expr Right hand side. Expression to set `id`'s value to.
-         */
-        Assign(const Identifier &id, exp expr) : mLhs(id),mRhs(expr) {}
-        /// Defaulted destructor.
-        virtual ~Assign() = default;
-        /**
-         * Get all production rule members.
-         * @return All production rule members.
-         */
-        virtual std::list<GR> getChildren() const;
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const;
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const;
-    protected:
-        /// Left hand side of assignment, variable identifier.
-        Identifier mLhs;
-        /// Right hand side of assignment, value to assign.
-        exp mRhs;
     };
 
     /**
@@ -608,6 +672,7 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+        virtual void parseSemantics();
     protected:
         /// Value of the constant.
         std::uint64_t mValue;
@@ -615,33 +680,12 @@ namespace hclang {
         bool mIsSigned;
     };
 
-    class Assignment : public Expression {
-    public:
-        Assignment(const Identifier &id, exp rhs, Operator op)
-            : mLhs(id),mRhs(rhs),mOperator(op) {}
-        virtual ~Assignment() = default;
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const;
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const;
-        /**
-         * Get all production rule members.
-         * @return All production rule members.
-         */
-        virtual std::list<GR> getChildren() const;
-    protected:
-        Identifier mLhs;
-        exp mRhs;
-        Operator mOperator;
-    };
+    using intConst = std::shared_ptr<IntegerConstant>;
+
+    template<typename... Args>
+    inline intConst makeIntConst(Args &&...args) {
+        return std::make_shared<IntegerConstant>(std::forward<Args>(args)...);
+    }
 
     /**
      * A list of ordered statements.
@@ -674,6 +718,7 @@ namespace hclang {
             return mStatementList.empty();
         }
 
+        virtual void parseSemantics();
     protected:
         statementList mStatementList;
     };
@@ -709,6 +754,9 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+
+
+        virtual void parseSemantics();
     protected:
         /// Boolean expression. TODO implicit comparison to 0.
         exp mConditional;
@@ -756,6 +804,8 @@ namespace hclang {
         inline StorageClass getStorageClass() const {
             return mStorageClass;
         }
+
+        virtual void parseSemantics();
     protected:
         /// Identifier of the declared variable.
         Identifier mId;
@@ -792,6 +842,8 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics();
     protected:
     };
 
@@ -823,6 +875,7 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+        virtual void parseSemantics();
     protected:
         funcDefn mDefinition;
     };
@@ -834,6 +887,41 @@ namespace hclang {
         return std::make_shared<FunctionDeclaration>(std::forward<Args>(args)...);
     }
 
+    class Return : public Statement {
+    public:
+        Return() = default;
+        Return(exp expr, const Lexeme &l = Lexeme())
+            : Statement(l),mExp(expr) { }
+        virtual ~Return() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics();
+    protected:
+        exp mExp;
+    };
+
+    using ret = std::shared_ptr<Return>;
+
+    template<typename... Args>
+    inline ret makeRet(Args &&...args) {
+        return std::make_shared<Return>(std::forward<Args>(args)...);
+    }
 
     /**
      * VariableDeclaration production rule.
@@ -866,6 +954,7 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+        virtual void parseSemantics();
     };
 
     /**
@@ -912,6 +1001,8 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics();
     protected:
         /// RHS.
         exp mRhs;
@@ -974,6 +1065,7 @@ namespace hclang {
             }
             return "?";
         }
+        virtual void parseSemantics();
     private:
         Type mType;
         decl mDeclRef;
@@ -1036,6 +1128,8 @@ namespace hclang {
             }
             return mDecls.front()->getStorageClass();
         }
+
+        virtual void parseSemantics();
     protected:
         /// List of declarations that make this statement.
         std::list<decl> mDecls;
@@ -1096,6 +1190,8 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics();
     protected:
         /// Global level compound statements and function declarations.
         std::list<programData> mStatements;
@@ -1177,7 +1273,28 @@ namespace hclang {
     inline GR scastGR(std::shared_ptr<T> p) {
         return std::static_pointer_cast<GrammarRule>(p);
     }
+
+    std::uint64_t sizeOf(typeInfo ti);
+
+    bool isScalar(typeInfo ti);
 }
+
+namespace fmt {
+    template<>
+    struct fmt::formatter<hclang::Operator>
+    {
+        template<typename ParseContext>
+        constexpr auto parse(ParseContext& ctx) { return ctx.begin(); }
+
+        template<typename FormatContext>
+        auto format(hclang::Operator op, FormatContext &ctx) {
+            return fmt::format_to(ctx.out(), "{}", hclang::operatorToString(op));
+        }
+
+    };
+    MAKE_FMT_STYLE_SPEC(hclang::Operator)
+}
+
 
 namespace fmt {
     template<>

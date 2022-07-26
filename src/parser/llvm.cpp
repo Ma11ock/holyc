@@ -447,6 +447,9 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
     case O::BitwiseXor:
         return builder.CreateXor(lhs, rhs, "bitxortmp");
         break;
+    case O::NotEquals:
+        return builder.CreateICmpNE(lhs, rhs, "neqtmp");
+        break;
     default:
         break;
     }
@@ -470,20 +473,9 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     // AST->LLVM.
     SymbolTable<llvm::Value*> symbolTable;
     symbolTable.pushTable();
-    // Make "result" symbol.
-    generateEntryBlockAlloca<std::int32_t>("result", symbolTable);
     parserContext pc { symbolTable };
     mProgram.toLLVM(pc);
 
-    auto retBlock = llvm::BasicBlock::Create(context, "ret", mainFunc);
-    blockStack.push(retBlock);
-    if(symbolTable.contains("result")) {
-        builder.CreateRet(readLvalue<std::uint32_t>("result", symbolTable));
-    } else {
-        builder.CreateRet(integerConstant(0));
-    }
-    blockStack.pop();
-    builder.CreateBr(retBlock);
 
     // Verify.
     llvm::verifyModule(*module);
@@ -585,10 +577,6 @@ hclang::LLV hclang::VariableDeclaration::toLLVM(parserContext &pc) const {
     return nullptr;
 }
 
-hclang::LLV hclang::Assignment::toLLVM(parserContext &pc) const {
-    return assignment(mRhs->toLLVM(pc), mLhs, mOperator, pc.symbolTable);
-}
-
 hclang::LLV hclang::VariableInitialization::toLLVM(parserContext &pc) const {
     auto alloca = hclang::VariableDeclaration::toLLVM(pc);
     auto rhs = mRhs->toLLVM(pc);
@@ -631,17 +619,32 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
-    return readLvalue<std::uint64_t>(mDeclRef, pc.symbolTable);
+    // TODO struct, enum, union, etc.
+    switch(mDeclRef->getType().type) {
+    case hct::U64i:
+    case hct::I64i:
+        return readLvalue<std::uint64_t>(mDeclRef, pc.symbolTable);
+        break;
+    case hct::U32i:
+    case hct::I32i:
+        return readLvalue<std::uint32_t>(mDeclRef, pc.symbolTable);
+        break;
+    default:
+        break;
+    }
+    return nullptr;
 }
 
 hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     // Create the blocks that will house the if-else code.
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
     auto condTrue = llvm::BasicBlock::Create(context, "cond_true", curFn);
-    auto condFalse = llvm::BasicBlock::Create(context, "cond_false", curFn);
     auto merge = llvm::BasicBlock::Create(context, "ifcont", curFn);
+    auto condFalse = merge;
+    if(mElseBody) {
+        condFalse = llvm::BasicBlock::Create(context, "cond_false", curFn);
+    }
 
-    // Make the branch condition in the entry block.
     builder.CreateCondBr(mConditional->toLLVM(pc), condTrue, condFalse);
 
     blockStack.push(condTrue);
@@ -678,4 +681,12 @@ hclang::LLV hclang::CompoundStatement::toLLVM(parserContext &pc) const {
     }
     pc.symbolTable.popTable();
     return nullptr;
+}
+
+hclang::LLV hclang::Return::toLLVM(parserContext &pc) const {
+    if(mExp) {
+        return builder.CreateRet(mExp->toLLVM(pc));
+    }
+
+    return builder.CreateRet(nullptr);
 }

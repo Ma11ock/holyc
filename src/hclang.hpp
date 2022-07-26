@@ -37,6 +37,7 @@ namespace hclang {
         Lastclass,
         Static,
         Public,
+        Return,
         // Intrinsic types.
         I0i,
         I8i,

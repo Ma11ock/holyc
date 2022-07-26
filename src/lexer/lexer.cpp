@@ -100,6 +100,9 @@ std::string_view hclang::stringifyTokenType(TokenType type) {
     case TT::If:
         return "If";
         break;
+    case TT::Return:
+        return "Return";
+        break;
     case TT::Else:
         return "Else";
         break;
@@ -406,6 +409,7 @@ hclang::Lexeme hclang::Lexer::pull() {
         Token("^\\{", TT::LCurlyBracket),
         Token("^\\}", TT::RCurlyBracket),
         Token("^if", TT::If),
+        Token("^return", TT::Return),
         Token("^else", TT::Else),
         Token("^else\\s+if", TT::ElseIf, true),
         Token("^class", TT::Class),

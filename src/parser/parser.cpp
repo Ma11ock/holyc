@@ -104,6 +104,8 @@ protected:
     hclang::exp expressionArgumentStart();
     void expressionStart(YardShunter &ys);
 
+    hclang::ret returnStart();
+
     hclang::ifStmnt ifStart();
     std::list<hclang::ifStmnt> elseIfStart();
     hclang::cmpdStmnt elseStart();
@@ -157,6 +159,18 @@ hclang::Lexeme ParseTreeImpl::getNextLookahead() {
     return mLookAhead;
 }
 
+hclang::ret ParseTreeImpl::returnStart() {
+    getNextLookahead();
+    switch(mLookAhead.getTokenType()) {
+    case TT::Return:
+        return hclang::makeRet(expressionCompoundStart(), mLookAhead);
+        break;
+    default:
+        break;
+    }
+    return nullptr;
+}
+
 hclang::ifStmnt ParseTreeImpl::ifStart() {
     getNextLookahead();
     bool nextIsFunc = false;
@@ -176,6 +190,17 @@ std::list<hclang::ifStmnt> ParseTreeImpl::elseIfStart() {
 }
 
 hclang::cmpdStmnt ParseTreeImpl::elseStart() {
+    getNextLookahead();
+    bool nextIsFunc = false;
+    switch(mLookAhead.getTokenType()) {
+    case TT::Else:
+        return compoundStatementStart(nextIsFunc);
+        break;
+    default:
+        // "Else" is optional, so if it doesn't appear we push it to the front.
+        pushTokenToFront();
+        break;
+    }
     return nullptr;
 }
 
@@ -233,9 +258,18 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             break;
         case TT::Identifier:
             // Check if variable or function.
+            if(auto sym = mSymbolTable.find(mLookAhead.getText());
+               sym) {
+                pushTokenToFront();
+                result->add(expressionCompoundStart());
+            }
             break;
         case TT::Eof:
             shouldContinue = false;
+            break;
+        case TT::Return:
+            pushTokenToFront();
+            result->add(returnStart());
             break;
         default:
             throw std::runtime_error(fmt::format("cmpstmt: {}, {}", mLookAhead.getTokenType(), mLookAhead.getText()));
@@ -250,9 +284,6 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
 void ParseTreeImpl::parseTokens() {
     programStart();
 
-    if(mConfig.shouldDumpAst()) {
-        mProgram.pprint();
-    }
 }
 
 
@@ -440,6 +471,9 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
     case TT::ModuloEqual:
         ys.push(O::ModuloAssignment, mLookAhead);
         break;
+    case TT::Equals:
+        ys.push(O::Assignment, mLookAhead);
+        break;
     case TT::Lparen:
         ys.push(O::Leftparen, mLookAhead);
         break;
@@ -455,7 +489,6 @@ hclang::exp ParseTreeImpl::expressionArgumentStart() {
     YardShunter ys;
     // Left recursion.
     while(getNextLookahead() != TT::Rparen) {
-        fmt::print("ELA: {}\n", getNextLookahead().getText());
         expressionStart(ys);
     }
 
@@ -479,6 +512,10 @@ hclang::exp ParseTreeImpl::expressionCompoundStart() {
 }
 
 void ParseTreeImpl::parseSemantics() {
+    mProgram.parseSemantics();
+    if(mConfig.shouldDumpAst()) {
+        mProgram.pprint();
+    }
 }
 
 // YardShunter implementation.
@@ -580,6 +617,9 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
 
     }
 
+    if(postfixEvalStack.empty()) {
+        return nullptr;
+    }
     return postfixEvalStack.top();
 }
 

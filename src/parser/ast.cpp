@@ -15,6 +15,7 @@
 
 using TT = hclang::TokenType;
 using O = hclang::Operator;
+using hct = hclang::HCType;
 using namespace std::string_view_literals;
 
 #define PRIMARY(what) (fmt::styled(what, fg(fmt::color::magenta) | fmt::emphasis::bold))
@@ -151,21 +152,6 @@ std::list<hclang::GR> hclang::IntegerConstant::getChildren() const {
     return {};
 }
 
-// Assignment
-
-void hclang::Assignment::pprint() const {
-    printDefault();
-    fmt::print(" {} {}",  SECONDARY(mType), PRIMARY(mLhs));
-}
-
-std::string_view hclang::Assignment::getClassName() const {
-    return "Assignment";
-}
-
-std::list<hclang::GR> hclang::Assignment::getChildren() const {
-    return { mRhs };
-}
-
 // Variable declaration
 
 void hclang::VariableDeclaration::pprint() const {
@@ -179,6 +165,28 @@ std::string_view hclang::VariableDeclaration::getClassName() const {
 
 std::list<hclang::GR> hclang::VariableDeclaration::getChildren() const {
     return {};
+}
+
+// Return.
+
+void hclang::Return::pprint() const {
+    printDefault();
+    if(mExp) {
+        fmt::print(" (void) ");
+        return;
+    }
+    fmt::print(" {}", PRIMARY(mExp->getType()));
+}
+
+std::string_view hclang::Return::getClassName() const {
+    return "Return";
+}
+
+std::list<hclang::GR> hclang::Return::getChildren() const {
+    if(mExp) {
+        return { mExp };
+    }
+    return { };
 }
 
 // DeclarationReference
@@ -197,7 +205,8 @@ void hclang::DeclarationReference::pprint() const {
     if(mDeclRef) {
         address = reinterpret_cast<std::size_t>(mDeclRef.get());
     }
-    fmt::print(" {} {}{:x}", PRIMARY(stringifyType()), SECONDARY("0x"), SECONDARY(address));
+    fmt::print(" {} {} {}{:x}", PRIMARY(stringifyType()), PRIMARY(mDeclRef->getIdRef()),
+               SECONDARY("0x"), SECONDARY(address));
 }
 
 std::string_view hclang::DeclarationReference::getClassName() const {
@@ -483,6 +492,39 @@ std::list<hclang::GR> hclang::If::getChildren() const {
 
 std::string_view hclang::operatorToString(hclang::Operator op) {
     switch(op) {
+    case O::AddAssignment:
+        return "+= (Add assignment)";
+        break;
+    case O::SubtractAssignment:
+        return "-= (Subtract assignment)";
+        break;
+    case O::MultiplyAssignment:
+        return "*= (Multiply assignment)";
+        break;
+    case O::DivideAssignment:
+        return "/= (Divide assignment)";
+        break;
+    case O::ModuloAssignment:
+        return "%= (Modulo assignment)";
+        break;
+    case O::OrAssignment:
+        return "|= (OR assignment)";
+        break;
+    case O::AndAssignment:
+        return "&= (AND assignment)";
+        break;
+    case O::XorAssignment:
+        return "^= (XOR assignment)";
+        break;
+    case O::LeftshiftAssignment:
+        return "<<= (Leftshift Assignment)";
+        break;
+    case O::RightshiftAssignment:
+        return ">>= (Rightshift Assignment)";
+        break;
+    case O::Assignment:
+        return "= (Assignment)";
+        break;
     case O::Add:
         return "+ (Addition)";
         break;
@@ -728,3 +770,35 @@ int hclang::operatorArgs(hclang::Operator op) {
     }
     return 2;
 }
+
+std::uint64_t hclang::sizeOf(typeInfo ti) {
+    if(ti.id.getId() != "") {
+        // Custom types.
+        return 0;
+    } else if(ti.pointer) {
+        return 0;
+    }
+
+    switch(ti.type) {
+    case hct::U8i:
+    case hct::I8i:
+        return 1;
+        break;
+    case hct::U16i:
+    case hct::I16i:
+        return 2;
+        break;
+    case hct::U32i:
+    case hct::I32i:
+        return 4;
+        break;
+    case hct::U64i:
+    case hct::I64i:
+        return 8;
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+

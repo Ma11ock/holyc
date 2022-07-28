@@ -195,8 +195,11 @@ hclang::DeclarationReference::DeclarationReference(const hclang::Identifier &id,
                                                    Type type,
                                                    const hclang::SymbolTable<decl> &table,
                                                    const Lexeme &l)
-    : Expression(l),mType(type),mDeclRef(table.find(id))
+    : Expression(l),mDeclType(type),mDeclRef(table.find(id))
 {
+    if(mDeclRef) {
+        mType = mDeclRef->getType();
+    }
 }
 
 void hclang::DeclarationReference::pprint() const {
@@ -260,7 +263,7 @@ void hclang::VariableInitialization::setLexeme(const hclang::Lexeme &l) {
 
 void hclang::VariableInitialization::pprint() const {
     printDefault();
-    fmt::print(" {} {}", fmt::styled("U64", fg(fmt::color::light_green) | fmt::emphasis::bold),
+    fmt::print(" {} {}", fmt::styled(getType(), fg(fmt::color::light_green) | fmt::emphasis::bold),
                fmt::styled(mId.getId(), fg(fmt::color::cyan) | fmt::emphasis::bold));
 }
 

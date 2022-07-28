@@ -611,9 +611,38 @@ hclang::LLV hclang::DeclarationStatement::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
     // TODO check expression's type.
-    if(hclang::isInteger(mIntoType)) {
+    if(!mIntoType.isIntrinsic() || mIntoType.isVoid()) {
+        throw std::invalid_argument(fmt::format("Cast: Type to cast is of type {}, but it needs to be an intrinsic",
+                                                mIntoType));
+    }
+    if(auto fromType = mExpr->getType();
+       !fromType.isIntrinsic() || fromType.isVoid()) {
+        throw std::invalid_argument(fmt::format("Cast: Type to cast is of type {}, but it needs to be an intrinsic",
+                                                fromType));
+    }
+    if(!mExpr) {
+        throw std::invalid_argument("Cast: Child is null");
+    }
+    switch(mType.type) {
+    case hct::I8i:
+    case hct::U8i:
+        return builder.CreateIntCast(mExpr->toLLVM(pc),
+                                     llvm::Type::getInt8Ty(context), true);
+    case hct::I16i:
+    case hct::U16i:
+        return builder.CreateIntCast(mExpr->toLLVM(pc),
+                                     llvm::Type::getInt16Ty(context), true);
+    case hct::I32i:
+    case hct::U32i:
         return builder.CreateIntCast(mExpr->toLLVM(pc),
                                      llvm::Type::getInt32Ty(context), true);
+    case hct::I64i:
+    case hct::U64i:
+        return builder.CreateIntCast(mExpr->toLLVM(pc),
+                                     llvm::Type::getInt64Ty(context), true);
+        break;
+    default:
+        break;
     }
     return nullptr;
 }

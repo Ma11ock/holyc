@@ -1049,7 +1049,7 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
         inline std::string_view stringifyType() const {
-            return stringifyType(mType);
+            return stringifyType(mDeclType);
         }
 
         inline std::string_view stringifyType(Type t) const {
@@ -1067,7 +1067,7 @@ namespace hclang {
         }
         virtual void parseSemantics();
     private:
-        Type mType;
+        Type mDeclType;
         decl mDeclRef;
     };
 

@@ -483,6 +483,8 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     parserContext pc { symbolTable };
     mProgram.toLLVM(pc);
 
+    // Insert implicit return 0 for main.
+    builder.CreateRet(integerConstant(INT32_C(0)));
 
     // Verify.
     llvm::verifyModule(*module);

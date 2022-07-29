@@ -584,26 +584,8 @@ namespace hclang {
 
     using binOp = std::shared_ptr<BinaryOperator>;
 
-    class Assignment : public BinaryOperator {
-    public:
-        Assignment(Operator op, exp lhs, exp rhs, const Lexeme &l = Lexeme())
-            : BinaryOperator(op, lhs, rhs, l) {}
-        virtual ~Assignment() = default;
-        virtual void parseSemantics(semanticContext &sc);
-    };
-
-    using asgn = std::shared_ptr<Assignment>;
-
-    template<typename... Args>
-    inline asgn makeAsgn(Args &&...args) {
-        return std::make_shared<Assignment>(std::forward<Args>(args)...);
-    }
-
     template<typename... Args>
     inline binOp makeBinOp(Operator op, Args &&...args) {
-        if(isAssignment(op)) {
-            return makeAsgn(op, std::forward<Args>(args)...);
-        }
         return std::make_shared<BinaryOperator>(op, std::forward<Args>(args)...);
     }
 

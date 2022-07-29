@@ -94,43 +94,19 @@ void hclang::BinaryOperator::parseSemantics(semanticContext &sc) {
 
     if(lType.isFloat() ||
        hclang::sizeOf(lType) > hclang::sizeOf(rType) ||
-       lType.isUnsigned() && rType.isSigned()) {
+       (lType.isUnsigned() && rType.isSigned()) ||
+       isAssignment()) {
 
         mRhs = hclang::makeImpCast(mRhs, lType);
         mType = lType;
     } else if(rType.isFloat() ||
               hclang::sizeOf(lType) < hclang::sizeOf(rType) ||
-              rType.isUnsigned() && lType.isSigned()) {
+              (rType.isUnsigned() && lType.isSigned()) &&
+              !isAssignment()) {
 
         mLhs = hclang::makeImpCast(mLhs, rType);
-        mType = lType;
+        mType = rType;
     }
-}
-
-void hclang::Assignment::parseSemantics(semanticContext &sc) {
-    // For assignments, the rhs has to conform to the lhs always.
-    mLhs->parseSemantics(sc);
-    mRhs->parseSemantics(sc);
-
-    auto lType = mLhs->getType();
-    auto rType = mRhs->getType();
-
-
-    if(lType == rType) {
-        return;
-    }
-
-
-    if(!lType.isIntrinsic() || lType.isVoid()) {
-        // TODO error
-        throw std::invalid_argument("Ltype is wrong.");
-    }
-    if(!rType.isIntrinsic() || rType.isVoid()) {
-        // TODO error
-        throw std::invalid_argument("Rtype is wrong.");
-    }
-
-    mRhs = makeImpCast(mRhs, lType);
 }
 
 void hclang::UnaryOperator::parseSemantics(semanticContext &sc) {

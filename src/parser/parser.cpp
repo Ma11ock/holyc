@@ -108,7 +108,7 @@ protected:
     hclang::ret returnStart();
 
     hclang::ifStmnt ifStart();
-    std::list<hclang::ifStmnt> elseIfStart();
+    std::list<hclang::elIf> elseIfStart();
     hclang::cmpdStmnt elseStart();
 };
 
@@ -186,8 +186,16 @@ hclang::ifStmnt ParseTreeImpl::ifStart() {
     return nullptr;
 }
 
-std::list<hclang::ifStmnt> ParseTreeImpl::elseIfStart() {
-    return {};
+std::list<hclang::elIf> ParseTreeImpl::elseIfStart() {
+    getNextLookahead();
+    bool nextIsFunc = false;
+    std::list<hclang::elIf> result;
+    while(mLookAhead.getTokenType() == TT::ElseIf) {
+        result.push_back(hclang::makeElIf(expressionArgumentStart(), compoundStatementStart(nextIsFunc)));
+    }
+
+    pushTokenToFront();
+    return result;
 }
 
 hclang::cmpdStmnt ParseTreeImpl::elseStart() {

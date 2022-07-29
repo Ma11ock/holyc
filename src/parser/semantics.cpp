@@ -29,6 +29,23 @@ expression that returns an intrinsic type");
     }
 }
 
+void hclang::ElseIf::parseSemantics(semanticContext &sc) {
+    if(auto type = mConditional->getType();
+       type.isIntrinsic() && !type.isVoid()) {
+        if(type.type != HCType::U64i) {
+            mConditional = hclang::makeImpCast(mConditional, typeInfo {});
+        }
+        // Compare to 0.
+        mConditional = makeBinOp(Operator::NotEquals, mConditional,
+                                 makeIntConst(0, typeInfo {}));
+    } else {
+        throw std::runtime_error("Error: if statement conditional must take an \
+expression that returns an intrinsic type");
+    }
+
+    mBody->parseSemantics(sc);
+}
+
 void hclang::Cast::parseSemantics(semanticContext &sc) {
     mExpr->parseSemantics(sc);
 }

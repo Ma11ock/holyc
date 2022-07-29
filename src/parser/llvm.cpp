@@ -457,6 +457,12 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
 
     return nullptr;
 }
+
+static inline llvm::Value *noOp() {
+    return binaryOperation(integerConstant(UINT32_C(0)), integerConstant(UINT32_C(0)),
+                           hclang::Operator::Add);
+}
+
 // ParseTree implementation.
 
 void hclang::ParseTree::compile(const hclang::fs::path &path) const {
@@ -711,6 +717,7 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
     auto condTrue = llvm::BasicBlock::Create(context, "cond_true", curFn);
     auto condFalse = llvm::BasicBlock::Create(context, "cond_false", curFn);
+    auto condElse = condFalse;
     auto merge = llvm::BasicBlock::Create(context, "ifcont", curFn);
 
     builder.CreateCondBr(mConditional->toLLVM(pc), condTrue, condFalse);
@@ -720,19 +727,41 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     builder.CreateBr(merge);
     blockStack.pop();
 
-    // TODO wrong. You have to check else ifs before going to else.
+    for(auto &elif : mElseIfs) {
+        auto cond = elif->getConditional();
+        auto body = elif->getBody();
 
-    // Else
-    if(mElseBody) {
-        blockStack.push(condFalse);
-        mElseBody->toLLVM(pc);
+        auto condElif = llvm::BasicBlock::Create(context, "cond_elif", curFn);
+        auto condElifElse = llvm::BasicBlock::Create(context, "cond_elif_else", curFn);
+
+        blockStack.push(condElse);
+        builder.CreateCondBr(cond->toLLVM(pc), condElif, condElifElse);
+        blockStack.pop();
+
+        blockStack.push(condElif);
+        body->toLLVM(pc);
         builder.CreateBr(merge);
         blockStack.pop();
+
+        condElse = condElifElse;
     }
+
+    // Else
+    blockStack.push(condElse);
+    if(mElseBody) {
+        mElseBody->toLLVM(pc);
+    }
+    builder.CreateBr(merge);
+    blockStack.pop();
 
     blockStack.push(merge);
     return nullptr;
 }
+
+hclang::LLV hclang::ElseIf::toLLVM(parserContext &pc) const {
+    return nullptr;
+}
+
 
 hclang::LLV hclang::FunctionDefinition::toLLVM(parserContext &pc) const {
     return nullptr;

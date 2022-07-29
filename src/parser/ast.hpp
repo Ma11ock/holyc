@@ -801,9 +801,58 @@ namespace hclang {
         return std::make_shared<CompoundStatement>(std::forward<Args>(args)...);
     }
 
+    class ElseIf : public Statement {
+    public:
+        ElseIf(exp conditional, cmpdStmnt body) : mConditional(conditional),mBody(body)
+        { }
+        virtual ~ElseIf() = default;
+
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+
+        virtual void parseSemantics(semanticContext &sc);
+
+        inline exp getConditional() const {
+            return mConditional;
+        }
+
+        inline cmpdStmnt getBody() const {
+            return mBody;
+        }
+    protected:
+        /// Else if conditoinal.
+        exp mConditional;
+        /// Compound statement child.
+        cmpdStmnt mBody;
+    };
+
+    using elIf = std::shared_ptr<ElseIf>;
+
+    template<typename... Args>
+    inline elIf makeElIf(Args &&...args) {
+        return std::make_shared<ElseIf>(std::forward<Args>(args)...);
+    }
+
+
     class If : public Statement {
     public:
-        If(exp conditional, cmpdStmnt body, std::list<std::shared_ptr<If>> elIfs,
+        If(exp conditional, cmpdStmnt body, std::list<elIf> elIfs,
            cmpdStmnt elseBody, const Lexeme &l = Lexeme())
             : Statement(l),mConditional(conditional),mBody(body),mElseIfs(elIfs),
               mElseBody(elseBody) { }
@@ -834,7 +883,7 @@ namespace hclang {
         /// Body of the if statement.
         cmpdStmnt mBody;
         /// Else ifs.
-        std::list<std::shared_ptr<If>> mElseIfs;
+        std::list<elIf> mElseIfs;
         /// Body of the optional "else" statement.
         cmpdStmnt mElseBody;
     };

@@ -689,8 +689,29 @@ std::string_view hclang::If::getClassName() const {
 
 std::list<hclang::GR> hclang::If::getChildren() const {
     // TODO elifs
-    return { scastGR(mConditional), scastGR(mBody), scastGR(mElseBody) };
+    std::list<hclang::GR> result;
+    result.assign(mElseIfs.begin(), mElseIfs.end());
+    result.push_front(mConditional);
+    result.push_back(mBody);
+    result.push_back(mElseBody);
+    return result;
 }
+
+// ElseIf.
+
+void hclang::ElseIf::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::ElseIf::getClassName() const {
+    return "ElseIfStatement";
+}
+
+std::list<hclang::GR> hclang::ElseIf::getChildren() const {
+    // TODO elifs
+    return { scastGR(mConditional), scastGR(mBody) };
+}
+
 
 // Functions.
 

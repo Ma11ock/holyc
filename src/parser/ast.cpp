@@ -768,6 +768,24 @@ std::string_view hclang::operatorToString(hclang::Operator op) {
     case O::Rightparen:
         return ") (Right paren)";
         break;
+    case O::Equals:
+        return "== (Equality)";
+        break;
+    case O::NotEquals:
+        return "!= (Inequality)";
+        break;
+    case O::LessThanEqual:
+        return "<= (Less than equal to)";
+        break;
+    case O::GreaterThanEqual:
+        return ">= (Greater than equal to)";
+        break;
+    case O::LessThan:
+        return "< (Less than)";
+        break;
+    case O::GreaterThan:
+        return "> (Greater than)";
+        break;
     default:
         break;
     }

@@ -8,6 +8,7 @@ using hct = hclang::HCType;
    because their type may change. */
 
 void hclang::If::parseSemantics(semanticContext &sc) {
+    mConditional->parseSemantics(sc);
     if(auto type = mConditional->getType();
        type.isIntrinsic() && !type.isVoid()) {
         if(type.type != HCType::U64i) {
@@ -15,6 +16,7 @@ void hclang::If::parseSemantics(semanticContext &sc) {
         }
         // Compare to 0.
         mConditional = makeBinOp(Operator::NotEquals, mConditional, makeIntConst(0, typeInfo {}));
+        mConditional->parseSemantics(sc);
     } else {
         throw std::runtime_error("Error: if statement conditional must take an \
 expression that returns an intrinsic type");

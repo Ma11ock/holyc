@@ -943,6 +943,18 @@ int hclang::getPrecedence(hclang::Operator op) {
     case O::Rightshift:
         return 11;
         break;
+    case O::Negative:
+        return 12;
+        break;
+    case O::PrefixPlusPlus:
+    case O::PrefixMinusMinus:
+    case O::LogicalNot:
+    case O::BitwiseNot:
+    case O::Dereference:
+    case O::AddressOf:
+    case O::SizeOf:
+        return 13;
+        break;
     case O::Leftparen:
     case O::Rightparen:
         return std::numeric_limits<int>::max();

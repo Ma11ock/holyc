@@ -46,20 +46,21 @@ protected:
      */
     class YardShunter {
     public:
-        YardShunter() : mOperatorStack(),mExpressionQueue(),mLastObjWasOp(false) {}
+        YardShunter() : mOperatorStack(),mExpressionQueue(),mLastObjWasOp(true) {
+        }
         ~YardShunter() = default;
         void push(hclang::Operator op, const hclang::Lexeme &l);
         void push(hclang::exp expr);
         void push(hclang::declRef expr);
 
-        bool lastObjWasOp() const { return mLastObjWasOp; }
+        inline bool lastObjWasOp() const { return mLastObjWasOp; }
         /**
          *
          * Note: assumes that the expression fed to the parser is valid.
          */
         hclang::exp reduce();
 
-        bool isEmpty() const {
+        inline bool isEmpty() const {
             return mOperatorStack.empty() && mExpressionQueue.empty();
         }
     protected:
@@ -560,13 +561,13 @@ void ParseTreeImpl::YardShunter::push(hclang::Operator op,
 
     auto maybePoppedOperator = pushOp(op, l);
 
+    mLastObjWasOp = !hclang::operatorIsPostfix(op);
     if(!maybePoppedOperator) {
         return;
     }
 
     auto poppedOperator = maybePoppedOperator.value();
     mExpressionQueue.push(ParseTreeImpl::operatorLex(maybePoppedOperator.value()));
-    mLastObjWasOp = !hclang::operatorIsPostfix(op);
 }
 
 std::optional<ParseTreeImpl::operatorLex>
@@ -620,7 +621,8 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
         {
             auto texpr = postfixEvalStack.top();
             hclang::exp expr = nullptr;
-            if(std::holds_alternative<hclang::declRef>(texpr)) {
+            if(std::holds_alternative<hclang::declRef>(texpr) &&
+               o.op != O::AddressOf) {
                 expr = hclang::makeL2Rval(std::get<hclang::declRef>(texpr));
             } else {
                 expr = std::get<hclang::exp>(texpr);

@@ -110,7 +110,13 @@ void hclang::BinaryOperator::parseSemantics(semanticContext &sc) {
 }
 
 void hclang::UnaryOperator::parseSemantics(semanticContext &sc) {
-    // TODO
+    mExpr->parseSemantics(sc);
+
+    auto childType = mExpr->getType();
+
+    if(isArithmetic(mOp) && !childType.isIntrinsic()) {
+        throw std::invalid_argument("Not an intrinsic");
+    }
 }
 
 void hclang::IntegerConstant::parseSemantics(semanticContext &sc) {

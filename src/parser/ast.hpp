@@ -137,6 +137,8 @@ namespace hclang {
         Leftparen,
         /// Rparen (control).
         Rightparen,
+        /// Sizeof operator.
+        SizeOf,
     };
 
     inline bool isAssignment(Operator op) {
@@ -158,6 +160,18 @@ namespace hclang {
             break;
         }
         return false;
+    }
+
+    inline bool isArithmetic(Operator op) {
+        switch(op) {
+        case Operator::Ternary:
+        case Operator::AddressOf:
+            return false;
+            break;
+        default:
+            break;
+        }
+        return true;
     }
 
     /**

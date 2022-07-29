@@ -357,6 +357,7 @@ static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable,
         return nullptr;
     }
 
+    // Create a store, return it.
     if(op == O::Assignment) {
         return builder.CreateStore(expr, variable, false);
     }
@@ -540,10 +541,35 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 }
 
 hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {
-    if(mIsSigned) {
+    switch(mType.type) {
+    case hct::I8i:
+        return integerConstant(static_cast<std::int8_t>(mValue));
+        break;
+    case hct::U8i:
+        return integerConstant(static_cast<std::uint8_t>(mValue));
+        break;
+    case hct::I16i:
+        return integerConstant(static_cast<std::int16_t>(mValue));
+        break;
+    case hct::U16i:
+        return integerConstant(static_cast<std::uint16_t>(mValue));
+        break;
+    case hct::I32i:
+        return integerConstant(static_cast<std::int32_t>(mValue));
+        break;
+    case hct::U32i:
+        return integerConstant(static_cast<std::uint32_t>(mValue));
+        break;
+    case hct::I64i:
         return integerConstant(static_cast<std::int64_t>(mValue));
+        break;
+    case hct::U64i:
+        return integerConstant(mValue);
+        break;
+    default:
+        break;
     }
-    return integerConstant(mValue);
+    return nullptr;
 }
 
 hclang::LLV hclang::VariableDeclaration::toLLVM(parserContext &pc) const {
@@ -595,6 +621,9 @@ hclang::LLV hclang::Program::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::BinaryOperator::toLLVM(parserContext &pc) const {
+    if(isAssignment()) {
+        return assignment(mRhs->toLLVM(pc), mLhs->toLLVM(pc), mOp, mLhs->getType());
+    }
     return binaryOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp);
 }
 
@@ -611,9 +640,9 @@ hclang::LLV hclang::DeclarationStatement::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
     // TODO check expression's type.
-    if(!mIntoType.isIntrinsic() || mIntoType.isVoid()) {
+    if(!mType.isIntrinsic() || mType.isVoid()) {
         throw std::invalid_argument(fmt::format("Cast: Type to cast is of type {}, but it needs to be an intrinsic",
-                                                mIntoType));
+                                                mType));
     }
     if(auto fromType = mExpr->getType();
        !fromType.isIntrinsic() || fromType.isVoid()) {
@@ -648,15 +677,28 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
+    return pc.symbolTable[getIdRef()];
+}
+
+hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
     // TODO struct, enum, union, etc.
+    auto underlyingDecl = mDeclRef->getDeclRef();
     switch(mDeclRef->getType().type) {
-    case hct::U64i:
-    case hct::I64i:
-        return readLvalue<std::uint64_t>(mDeclRef, pc.symbolTable);
+    case hct::U8i:
+    case hct::I8i:
+        return readLvalue<std::uint8_t>(underlyingDecl, pc.symbolTable);
+        break;
+    case hct::U16i:
+    case hct::I16i:
+        return readLvalue<std::uint16_t>(underlyingDecl, pc.symbolTable);
         break;
     case hct::U32i:
     case hct::I32i:
-        return readLvalue<std::uint32_t>(mDeclRef, pc.symbolTable);
+        return readLvalue<std::uint32_t>(underlyingDecl, pc.symbolTable);
+        break;
+    case hct::U64i:
+    case hct::I64i:
+        return readLvalue<std::uint64_t>(underlyingDecl, pc.symbolTable);
         break;
     default:
         break;
@@ -668,11 +710,8 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     // Create the blocks that will house the if-else code.
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
     auto condTrue = llvm::BasicBlock::Create(context, "cond_true", curFn);
+    auto condFalse = llvm::BasicBlock::Create(context, "cond_false", curFn);
     auto merge = llvm::BasicBlock::Create(context, "ifcont", curFn);
-    auto condFalse = merge;
-    if(mElseBody) {
-        condFalse = llvm::BasicBlock::Create(context, "cond_false", curFn);
-    }
 
     builder.CreateCondBr(mConditional->toLLVM(pc), condTrue, condFalse);
 

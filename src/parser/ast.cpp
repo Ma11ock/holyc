@@ -61,10 +61,212 @@ hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t
         throw std::invalid_argument(fmt::format("{} cannot have constants",
                                                 typeToString(type)));
         break;
+
+    case hct::I8i:
+    case hct::I16i:
+    case hct::I32i:
+    case hct::I64i:
+        mIsSigned = true;
+        break;
     default:
         break;
     }
 }
+
+hclang::IntegerConstant hclang::IntegerConstant::makeI8(std::string_view src, int base, const Lexeme &l) {
+    std::int8_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid int8",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid int8",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 8 bit integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I8i }, l);
+}
+
+hclang::IntegerConstant hclang::IntegerConstant::makeU8(std::string_view src, int base, const Lexeme &l) {
+    std::uint8_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid uint8",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid uint8",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 8 bit unsigned integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::U8i }, l);
+}
+
+hclang::IntegerConstant hclang::IntegerConstant::makeI16(std::string_view src, int base, const Lexeme &l) {
+    std::int16_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid int16",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid int16",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 16 bit integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I16i }, l);
+}
+
+hclang::IntegerConstant hclang::IntegerConstant::makeU16(std::string_view src, int base, const Lexeme &l) {
+    std::uint16_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid uint16",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid uint16",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 16 bit unsigned integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::U16i }, l);
+}
+
+hclang::IntegerConstant hclang::IntegerConstant::makeI32(std::string_view src, int base, const Lexeme &l) {
+    std::int32_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid int32",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid int32",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 32 bit integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I32i }, l);
+}
+
+hclang::IntegerConstant hclang::IntegerConstant::makeU32(std::string_view src, int base, const Lexeme &l) {
+    std::uint32_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid uint32",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid uint32",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 32 bit unsigned integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::U32i }, l);
+}
+
+hclang::IntegerConstant hclang::IntegerConstant::makeI64(std::string_view src, int base, const Lexeme &l) {
+    std::int64_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid int64",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid int64",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 64 bit integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I64i }, l);
+}
+
+hclang::IntegerConstant hclang::IntegerConstant::makeU64(std::string_view src, int base, const Lexeme &l) {
+    std::uint64_t value = 0;
+    auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
+
+    if(ptr != src.end()) {
+        throw std::invalid_argument(fmt::format("{} is not a valid uint64",
+                                                src));
+    }
+
+    switch(ec) {
+    case std::errc::invalid_argument:
+        throw std::invalid_argument(fmt::format("{} is not a valid uint64",
+                                                src));
+        break;
+    case std::errc::result_out_of_range:
+        throw std::range_error(fmt::format("{} is out of range of 64 bit unsigned integer",
+                                           src));
+        break;
+    default:
+        break;
+    }
+    return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::U64i }, l);
+}
+
 
 hclang::IntegerConstant::IntegerConstant(std::string_view source,
                                          const hclang::Lexeme &l)
@@ -75,72 +277,56 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source,
     if(util::prefix(source, "0x") || util::prefix(source, "0X")) {
         source = std::string_view(source.data() + 2, source.size() - 2);
         base = 16;
-    } else if(util::prefix(source, "0")) {
+    } else if(util::prefix(source, "0") && source.size() > 1) {
         source = std::string_view(source.data() + 1, source.size() - 1);
         base = 8;
     }
 
-    mIsSigned = util::prefix(source, "-");
-
-    if(mIsSigned) {
-        // Signed constant.
-        mType.type = HCType::I64i;
-        std::int64_t value = 0;
-        auto [ptr, ec] = std::from_chars(source.begin(), source.end(), value, base);
-
-        if(ptr != source.end()) {
-            throw std::invalid_argument(fmt::format("{} is not a valid int64",
-                                                    source));
-        }
-
-        switch(ec) {
-        case std::errc::invalid_argument:
-            throw std::invalid_argument(fmt::format("{} is not a valid int64",
-                                                    source));
-            break;
-        case std::errc::result_out_of_range:
-            throw std::range_error(fmt::format("{} is out of range of 64 bit integer",
-                                               source));
-            break;
-        default:
-            break;
-        }
-        mValue = static_cast<std::uint64_t>(value);
-        return;
+    if(util::postfix(source, "U8")) {
+        source = std::string_view(source.data(), source.size() - 2);
+        *this = makeU8(source, base, l);
     }
-    // Unsigned constant.
-    auto [ptr, ec] = std::from_chars(source.begin(), source.end(), mValue, base);
-
-    if(ptr != source.end()) {
-        throw std::invalid_argument(fmt::format("{} is not a valid integer",
-                                                source));
+    else if(util::postfix(source, "I8")) {
+        source = std::string_view(source.data(), source.size() - 2);
+        *this = makeI8(source, base, l);
+    }
+    else if(util::postfix(source, "U16")) {
+        source = std::string_view(source.data(), source.size() - 3);
+        *this = makeU16(source, base, l);
+    }
+    else if(util::postfix(source, "I16")) {
+        source = std::string_view(source.data(), source.size() - 3);
+        *this = makeI16(source, base, l);
+    }
+    else if(util::postfix(source, "U32")) {
+        source = std::string_view(source.data(), source.size() - 3);
+        *this = makeU32(source, base, l);
+    }
+    else if(util::postfix(source, "I32")) {
+        source = std::string_view(source.data(), source.size() - 3);
+        *this = makeI32(source, base, l);
+    }
+    else if(util::postfix(source, "U64")) {
+        source = std::string_view(source.data(), source.size() - 3);
+        *this = makeU64(source, base, l);
+    }
+    else if(util::postfix(source, "I64")) {
+        source = std::string_view(source.data(), source.size() - 3);
+        *this = makeI64(source, base, l);
+    } else {
+        // U64 is default integer type.
+        *this = makeU64(source, base, l);
     }
 
-    switch(ec) {
-    case std::errc::invalid_argument:
-        throw std::invalid_argument(fmt::format("{} is not a valid int64",
-                                                source));
-        break;
-    case std::errc::result_out_of_range:
-        throw std::range_error(fmt::format("{} is out of range of 64 bit integer",
-                                           source));
-        break;
-    default:
-        break;
-    }
+
 }
 
 void hclang::IntegerConstant::pprint() const {
     printDefault();
     if(mIsSigned) {
-        fmt::print(" {} {}",
-                   SECONDARY(mType),
-                   fmt::styled(static_cast<std::int64_t>(mValue),
-                               fg(fmt::color::cyan)));
+        fmt::print(" {} {}", SECONDARY(mType), PRIMARY(static_cast<std::int64_t>(mValue)));
     } else {
-        fmt::print(" {} {}",
-                   SECONDARY(mType),
-                   fmt::styled(mValue, fg(fmt::color::cyan)));
+        fmt::print(" {} {}", SECONDARY(mType), PRIMARY(mValue));
     }
 }
 
@@ -217,19 +403,34 @@ std::string_view hclang::DeclarationReference::getClassName() const {
 }
 
 std::list<hclang::GR> hclang::DeclarationReference::getChildren() const {
-    return {  };
+    return { mDeclRef };
+}
+
+// LToRValue
+
+
+void hclang::LToRValue::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::LToRValue::getClassName() const {
+    return "LToRValue";
+}
+
+std::list<hclang::GR> hclang::LToRValue::getChildren() const {
+    return { mDeclRef };
 }
 
 // Cast.
 
 hclang::Cast::Cast(hclang::exp expr, hclang::typeInfo into, const hclang::Lexeme l)
-    : hclang::Expression(l),mIntoType(into),mExpr(expr) {
+    : hclang::Expression(into, l),mExpr(expr) {
     // TODO check that types are compatible.
 }
 
 void hclang::Cast::pprint() const {
     printDefault();
-    fmt::print(" {}", hclang::typeToString(mIntoType.type));
+    fmt::print(" {}", PRIMARY(mType));
 }
 
 std::string_view hclang::Cast::getClassName() const {

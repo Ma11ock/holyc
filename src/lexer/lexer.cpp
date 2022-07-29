@@ -481,7 +481,7 @@ hclang::Lexeme hclang::Lexer::pull() {
         // Constants.
         Token("^'.'", TT::CharacterConstant),
         Token("^\".*\"", TT::StringConstant), // Maybe multiline?
-        Token("^(0x[-0-9A-Fa-f]+|[-0-9]+)", TT::IntegerConstant),
+        Token("^(0x[0-9A-Fa-f]+|[-0-9]+)(U8|I8|U16|I16|U32|I32|U64|I64)?", TT::IntegerConstant),
         Token("^([-0-9](\\.[0-9](e[-0-9])?)?)+", TT::FloatConstant), // TODO HC might allow hex float constants.
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
         Token("^[_a-zA-Z][_\\w]*:", TT::Label),

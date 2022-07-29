@@ -35,9 +35,17 @@ namespace hclang {
     template<typename T>
     class SymbolTable;
 
+    /**
+     * Parser context information used for LLVM code generation.
+     */
     struct parserContext {
+        /// Symbol table with LLVM values.
         SymbolTable<LLV> &symbolTable;
     };
+
+    // Forward declartion of struct used for semantic parsing.
+    struct semanticContext;
+
 
     /**
      * All valid operators in HolyC.
@@ -131,6 +139,27 @@ namespace hclang {
         Rightparen,
     };
 
+    inline bool isAssignment(Operator op) {
+        switch(op) {
+        case Operator::Assignment:
+        case Operator::AddAssignment:
+        case Operator::LeftshiftAssignment:
+        case Operator::RightshiftAssignment:
+        case Operator::SubtractAssignment:
+        case Operator::MultiplyAssignment:
+        case Operator::DivideAssignment:
+        case Operator::ModuloAssignment:
+        case Operator::OrAssignment:
+        case Operator::AndAssignment:
+        case Operator::XorAssignment:
+            return true;
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+
     /**
      * HolyC type categories, including intrinsic types, classes, enums,
      * and structs.
@@ -180,8 +209,9 @@ namespace hclang {
         }
 
         inline bool operator==(const typeInfo &other) const {
-            return id == other.id && type == other.type
-                && ((pointer && other.pointer) && (*pointer == *pointer));
+            return (id == other.id) && (type == other.type) &&
+                (((pointer && other.pointer) && (*pointer == *other.pointer)) ||
+                 (!pointer && !other.pointer));
         }
 
         inline bool isFloat() const {
@@ -209,6 +239,25 @@ namespace hclang {
             case HCType::U16i:
             case HCType::U32i:
             case HCType::U64i:
+                return true;
+            default:
+                break;
+            }
+            return false;
+        }
+
+        inline bool isInteger() const {
+            switch(type) {
+            case HCType::U0i:
+            case HCType::U8i:
+            case HCType::U16i:
+            case HCType::U32i:
+            case HCType::U64i:
+            case HCType::I0i:
+            case HCType::I8i:
+            case HCType::I16i:
+            case HCType::I32i:
+            case HCType::I64i:
                 return true;
             default:
                 break;
@@ -354,7 +403,7 @@ namespace hclang {
 
         virtual void setLexeme(const Lexeme &l);
 
-        virtual void parseSemantics() = 0;
+        virtual void parseSemantics(semanticContext &sc) = 0;
     protected:
         /// Lexeme that began this production rule.
         std::optional<hclang::Lexeme> mLexeme;
@@ -456,10 +505,8 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::list<GR> getChildren() const;
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
-        /// Type to cast `mExpr` into.
-        typeInfo mIntoType;
         /// Expression to cast.
         exp mExpr;
     };
@@ -477,7 +524,7 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::string_view getClassName() const;
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     };
 
     using impCast = std::shared_ptr<ImplicitCast>;
@@ -520,28 +567,12 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
 
         inline bool isAssignment() const {
-            switch(mOp) {
-            case Operator::Assignment:
-            case Operator::AddAssignment:
-            case Operator::LeftshiftAssignment:
-            case Operator::RightshiftAssignment:
-            case Operator::SubtractAssignment:
-            case Operator::MultiplyAssignment:
-            case Operator::DivideAssignment:
-            case Operator::ModuloAssignment:
-            case Operator::OrAssignment:
-            case Operator::AndAssignment:
-            case Operator::XorAssignment:
-                return true;
-                break;
-            default:
-                break;
-            }
-            return false;
+            return hclang::isAssignment(mOp);
         }
+
     protected:
         /// Operator category.
         Operator mOp;
@@ -553,10 +584,29 @@ namespace hclang {
 
     using binOp = std::shared_ptr<BinaryOperator>;
 
+    class Assignment : public BinaryOperator {
+    public:
+        Assignment(Operator op, exp lhs, exp rhs, const Lexeme &l = Lexeme())
+            : BinaryOperator(op, lhs, rhs, l) {}
+        virtual ~Assignment() = default;
+        virtual void parseSemantics(semanticContext &sc);
+    };
+
+    using asgn = std::shared_ptr<Assignment>;
+
     template<typename... Args>
-    inline binOp makeBinOp(Args &&...args) {
-        return std::make_shared<BinaryOperator>(std::forward<Args>(args)...);
+    inline asgn makeAsgn(Args &&...args) {
+        return std::make_shared<Assignment>(std::forward<Args>(args)...);
     }
+
+    template<typename... Args>
+    inline binOp makeBinOp(Operator op, Args &&...args) {
+        if(isAssignment(op)) {
+            return makeAsgn(op, std::forward<Args>(args)...);
+        }
+        return std::make_shared<BinaryOperator>(op, std::forward<Args>(args)...);
+    }
+
 
     /**
      * Unary operator language construct (any operator with one argument).
@@ -591,7 +641,7 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     private:
         /// Operator category.
         Operator mOp;
@@ -621,6 +671,15 @@ namespace hclang {
      */
     class IntegerConstant : public Constant {
     public:
+        static IntegerConstant makeI8(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeU8(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeI16(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeU16(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeI32(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeU32(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeI64(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeU64(std::string_view src, int base, const Lexeme &l);
+
         /// Defaulted constructor.
         IntegerConstant() = default;
         /**
@@ -672,7 +731,19 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
+
+        inline IntegerConstant &operator==(const IntegerConstant &ic) {
+            if(this == &ic) {
+                return *this;
+            }
+
+            mIsSigned = ic.mIsSigned;
+            mLexeme = ic.mLexeme;
+            mType = ic.mType;
+            mValue = ic.mValue;
+            return *this;
+        }
     protected:
         /// Value of the constant.
         std::uint64_t mValue;
@@ -718,7 +789,7 @@ namespace hclang {
             return mStatementList.empty();
         }
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
         statementList mStatementList;
     };
@@ -756,7 +827,7 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
         /// Boolean expression. TODO implicit comparison to 0.
         exp mConditional;
@@ -805,7 +876,7 @@ namespace hclang {
             return mStorageClass;
         }
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
         /// Identifier of the declared variable.
         Identifier mId;
@@ -843,8 +914,13 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
+
+        inline typeInfo getType() const {
+            return mType;
+        }
     protected:
+        typeInfo mType;
     };
 
     using funcDefn = std::shared_ptr<FunctionDefinition>;
@@ -875,7 +951,8 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
+
     protected:
         funcDefn mDefinition;
     };
@@ -911,7 +988,7 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
         exp mExp;
     };
@@ -954,7 +1031,7 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     };
 
     /**
@@ -1002,7 +1079,7 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
         /// RHS.
         exp mRhs;
@@ -1065,7 +1142,15 @@ namespace hclang {
             }
             return "?";
         }
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
+
+        inline const Identifier &getIdRef() const {
+            return mDeclRef->getIdRef();
+        }
+
+        inline decl getDeclRef() const {
+            return mDeclRef;
+        }
     private:
         Type mDeclType;
         decl mDeclRef;
@@ -1076,6 +1161,42 @@ namespace hclang {
     template<typename... Args>
     inline declRef makeDeclRef(Args &&...args) {
         return std::make_shared<DeclarationReference>(std::forward<Args>(args)...);
+    }
+
+    class LToRValue : public Expression {
+    public:
+        LToRValue(declRef declRef) : Expression(declRef->getType()),mDeclRef(declRef) { }
+
+        virtual ~LToRValue() = default;
+
+        /**
+         * Generate LLVM byteco<decl>de.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics(semanticContext &sc);
+    protected:
+        declRef mDeclRef;
+    };
+
+    using l2rval = std::shared_ptr<LToRValue>;
+
+    template<typename... Args>
+    inline l2rval makeL2Rval(Args &&...args) {
+        return std::make_shared<LToRValue>(std::forward<Args>(args)...);
     }
 
     /**
@@ -1129,7 +1250,7 @@ namespace hclang {
             return mDecls.front()->getStorageClass();
         }
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
         /// List of declarations that make this statement.
         std::list<decl> mDecls;
@@ -1191,7 +1312,7 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
-        virtual void parseSemantics();
+        virtual void parseSemantics(semanticContext &sc);
     protected:
         /// Global level compound statements and function declarations.
         std::list<programData> mStatements;
@@ -1277,6 +1398,15 @@ namespace hclang {
     std::uint64_t sizeOf(typeInfo ti);
 
     bool isScalar(typeInfo ti);
+
+    /**
+     * Struct used for semantic (correctness) parsing.
+     */
+    struct semanticContext {
+        /// Current function code is being generated into. If NULL, then we are
+        /// in global context.
+        std::optional<funcDefn> curFunc;
+    };
 }
 
 namespace fmt {

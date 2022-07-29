@@ -4,6 +4,7 @@
 #include <fmt/core.h>
 #include <cstdint>
 #include <string>
+#include <algorithm>
 
 #ifdef __unix__
 #include <cerrno>
@@ -36,7 +37,17 @@ namespace util {
     }
 
     inline bool prefix(std::string_view s, std::string_view prefix) {
+        if(prefix.size() > s.size()) {
+            return false;
+        }
         return s.rfind(prefix, 0) == 0;
+    }
+
+    inline bool postfix(std::string_view s, std::string_view postfix) {
+        if(postfix.size() > s.size()) {
+            return false;
+        }
+        return std::equal(postfix.rbegin(), postfix.rend(), s.rbegin());
     }
 }
 

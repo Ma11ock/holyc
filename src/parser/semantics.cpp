@@ -30,6 +30,22 @@ expression that returns an intrinsic type");
     }
 }
 
+void hclang::While::parseSemantics(semanticContext &sc) {
+    mConditional->parseSemantics(sc);
+    if(auto type = mConditional->getType();
+       type.isIntrinsic() && !type.isVoid()) {
+        // Cast to U64i to make comparisons uniform.
+        if(type.type != HCType::U64i) {
+            mConditional = hclang::makeImpCast(mConditional, typeInfo {});
+        }
+    } else {
+        throw std::runtime_error("Error: if statement conditional must take an \
+expression that returns an intrinsic type");
+    }
+
+    mBody->parseSemantics(sc);
+}
+
 void hclang::ElseIf::parseSemantics(semanticContext &sc) {
     if(auto type = mConditional->getType();
        type.isIntrinsic() && !type.isVoid()) {
@@ -131,7 +147,7 @@ void hclang::BinaryAssignment::parseSemantics(semanticContext &sc) {
     }
 
     if(!lType.isIntrinsic()) {
-        throw std::invalid_argument("L is not intrinsic");
+        throw  std::invalid_argument("L is not intrinsic");
     }
 
     if(!rType.isIntrinsic()) {

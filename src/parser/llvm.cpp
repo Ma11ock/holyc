@@ -845,7 +845,7 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     auto condTrue = llvm::BasicBlock::Create(context, "cond_true", curFn);
     auto condFalse = llvm::BasicBlock::Create(context, "cond_false", curFn);
     auto condElse = condFalse;
-    auto merge = llvm::BasicBlock::Create(context, "ifcont", curFn);
+    auto merge = llvm::BasicBlock::Create(context, "if_cont", curFn);
 
     builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), condTrue, condFalse);
 
@@ -879,6 +879,23 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
         mElseBody->toLLVM(pc);
     }
     builder.CreateBr(merge);
+    blockStack.pop();
+
+    blockStack.push(merge);
+    return nullptr;
+}
+
+hclang::LLV hclang::While::toLLVM(parserContext &pc) const {
+    // Create the blocks that will house the loop branches.
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    auto condTrue = llvm::BasicBlock::Create(context, "cond_true", curFn);
+    auto merge = llvm::BasicBlock::Create(context, "while_cont", curFn);
+
+    builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), condTrue, merge);
+
+    blockStack.push(condTrue);
+    mBody->toLLVM(pc);
+    builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), condTrue, merge);
     blockStack.pop();
 
     blockStack.push(merge);

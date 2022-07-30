@@ -414,6 +414,7 @@ hclang::Lexeme hclang::Lexer::pull() {
         Token("^else\\s+if", TT::ElseIf, true),
         Token("^class", TT::Class),
         Token("^while", TT::While),
+        Token("^do", TT::Do),
         Token("^for", TT::For),
         Token("^boolean", TT::Boolean),
         Token("^I8i", TT::I8i),

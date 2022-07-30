@@ -916,6 +916,46 @@ namespace hclang {
         return std::make_shared<If>(std::forward<Args>(args)...);
     }
 
+    class While : public Statement {
+    public:
+        While(exp conditional, cmpdStmnt body, bool isDo = false, const Lexeme &l = Lexeme())
+            : Statement(l),mConditional(conditional),mBody(body),mIsDo(isDo) { }
+
+        virtual ~While() = default;
+
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+
+        virtual void parseSemantics(semanticContext &sc);
+    protected:
+        exp mConditional;
+        cmpdStmnt mBody;
+        bool mIsDo;
+    };
+
+    using whileStmnt = std::shared_ptr<While>;
+
+    template<typename... Args>
+    inline whileStmnt makeWhile(Args &&...args) {
+        return std::make_shared<While>(std::forward<Args>(args)...);
+    }
+
     /**
      * Dummy class for Declaration productions.
      */

@@ -20,6 +20,7 @@ namespace hclang {
         Enum,
         Union,
         While,
+        Do,
         For,
         Boolean,
         Goto,

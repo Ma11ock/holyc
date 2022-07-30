@@ -724,6 +724,20 @@ std::list<hclang::GR> hclang::ElseIf::getChildren() const {
     return { scastGR(mConditional), scastGR(mBody) };
 }
 
+// While
+
+void hclang::While::pprint() const {
+    printDefault();
+    fmt::print(" {}", mIsDo ? "do-while" : "");
+}
+
+std::string_view hclang::While::getClassName() const {
+    return "WhileStatement";
+}
+
+std::list<hclang::GR> hclang::While::getChildren() const {
+    return { scastGR(mConditional), scastGR(mBody) };
+}
 
 // Functions.
 

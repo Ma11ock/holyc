@@ -111,6 +111,8 @@ protected:
     hclang::ifStmnt ifStart();
     std::list<hclang::elIf> elseIfStart();
     hclang::cmpdStmnt elseStart();
+
+    hclang::whileStmnt whileStart();
 };
 
 #define parseRet(funcall) {                     \
@@ -181,6 +183,35 @@ hclang::ifStmnt ParseTreeImpl::ifStart() {
         return hclang::makeIf(expressionArgumentStart(), compoundStatementStart(nextIsFunc),
                               elseIfStart(), elseStart(), mLookAhead);
         break;
+    default:
+        break;
+    }
+    return nullptr;
+}
+
+hclang::whileStmnt ParseTreeImpl::whileStart() {
+    getNextLookahead();
+    bool nextIsFunc = false;
+    switch(mLookAhead.getTokenType()) {
+    case TT::While:
+        return hclang::makeWhile(expressionArgumentStart(), compoundStatementStart(nextIsFunc), false, mLookAhead);
+        break;
+    case TT::Do:
+    {
+        auto startLex = mLookAhead;
+        auto body = compoundStatementStart(nextIsFunc);
+        if(getNextLookahead() == TT::While) {
+            auto conditional = expressionArgumentStart();
+            if(getNextLookahead() != TT::Semicolon) {
+                throw std::invalid_argument("do while syntax (semicolon)");
+            }
+            pushTokenToFront();
+            return hclang::makeWhile(conditional, body, true, startLex);
+        } else {
+            throw std::invalid_argument("do while syntax error");
+        }
+    }
+    break;
     default:
         break;
     }
@@ -272,6 +303,10 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             pushTokenToFront();
             result->add(ifStart());
             break;
+        case TT::While:
+            pushTokenToFront();
+            result->add(whileStart());
+            break;
         case TT::Identifier:
             // Check if variable or function.
             if(auto sym = mSymbolTable.find(mLookAhead.getText());
@@ -306,8 +341,6 @@ void ParseTreeImpl::parseTokens() {
 hclang::GR ParseTreeImpl::programStart() {
 
     mSymbolTable.pushTable();
-    mSymbolTable["result"] = hclang::makeVarDecl(hclang::Identifier("reuslt"),
-                                                 hclang::typeInfo {});
     bool shouldContinue = true;
     while(shouldContinue) {
         bool nextIsFunc = false;

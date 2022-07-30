@@ -447,6 +447,8 @@ hclang::Lexeme hclang::Lexer::pull() {
         Token("^\\*", TT::Star),
         Token("^\\+", TT::Plus),
         Token("^\\-", TT::Minus),
+        Token("^\\+\\+", TT::PlusPlus),
+        Token("^\\-\\-", TT::MinusMinus),
         Token("^\\/", TT::Divide),
         Token("^\\`", TT::Power),
         Token("^\\=", TT::Equals),

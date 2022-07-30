@@ -21,6 +21,44 @@
 using O = hclang::Operator;
 using hct = hclang::HCType;
 
+namespace hclang {
+    class LLVMCast : public hclang::GrammarRule {
+    public:
+        LLVMCast(typeInfo type, LLV expr) : mExpr(expr),mType(type) {
+        }
+
+        virtual ~LLVMCast() = default;
+
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const {
+        }
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const {
+            return "LLVMCast";
+        }
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::list<GR> getChildren() const {
+            return { };
+        }
+
+        virtual void parseSemantics(semanticContext &sc) { }
+    protected:
+        LLV mExpr;
+        typeInfo mType;
+    };
+}
+
 // Static globals.
 
 static llvm::LLVMContext context;
@@ -123,6 +161,10 @@ static inline llvm::Value *f64Constant(double val) {
     return llvm::ConstantFP::get(context, llvm::APFloat(val));
 }
 
+static inline llvm::Value *integerConstant(bool val) {
+    return llvm::ConstantInt::get(context, llvm::APInt(1, static_cast<std::uint8_t>(val), false));
+}
+
 static inline llvm::Value *integerConstant(std::uint8_t val) {
     return llvm::ConstantInt::get(context, llvm::APInt(8, val, false));
 }
@@ -157,6 +199,10 @@ static inline llvm::Value *integerConstant(std::int64_t val) {
 
 static inline llvm::Value *makePlus(llvm::Value *lhs, llvm::Value *rhs) {
     return builder.CreateFAdd(lhs, rhs, "addtmp");
+}
+
+static inline llvm::Value *u64ToI1(llvm::Value *expr) {
+    return builder.CreateICmpNE(expr, integerConstant(UINT64_C(0)));
 }
 
 template<typename T>
@@ -328,64 +374,58 @@ static inline llvm::Value *readLvalue(hclang::decl dec,
     return readLvalue<T>(dec->getIdRef().getId(), symbols);
 }
 
-
-static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op) {
-    if(!expr) {
-        return nullptr;
-    }
-
-    switch(op) {
-    case O::Negative:
-        return builder.CreateNeg(expr, "negatetmp");
-        break;
-    case O::BitwiseNot:
-        return builder.CreateNot(expr, "nottmp");
-        break;
-    case O::Positive:
-        return expr;
-        break;
-    default:
-        break;
-    }
-
-    return nullptr;
-}
-
-static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable,
-                               hclang::Operator op, const hclang::typeInfo &ti = {}) {
+static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable, llvm::Value *load,
+                               hclang::Operator op) {
     if(!expr || !variable) {
         return nullptr;
     }
 
     // Create a store, return it.
     if(op == O::Assignment) {
-        return builder.CreateStore(expr, variable, false);
+        builder.CreateStore(expr, variable, false);
+        return expr;
     }
 
     // All other assigns depend on the current value of variable.
-    auto val = builder.CreateLoad(llvmTypeFrom(ti), variable, false, "assigntmp");
+    if(!load) {
+        return nullptr;
+    }
+
     llvm::Value *result = nullptr;
     switch(op) {
     case O::AddAssignment:
+    case O::PrefixPlusPlus:
     {
-        result = builder.CreateAdd(val, expr, "addeqtmp");
+        result = builder.CreateAdd(load, expr, "addeqtmp");
         builder.CreateStore(result, variable, false);
     }
-        break;
+    break;
+    case O::SubtractAssignment:
+    case O::PrefixMinusMinus:
+    {
+        result = builder.CreateSub(load, expr, "subeqtmp");
+        builder.CreateStore(result, variable, false);
+    }
+    break;
+    case O::PostfixPlusPlus:
+    {
+        result = builder.CreateAdd(load, expr, "addeqtmp");
+        builder.CreateStore(result, variable, false);
+        result = load;
+    }
+    break;
+    case O::PostfixMinusMinus:
+    {
+        result = builder.CreateSub(load, expr, "addeqtmp");
+        builder.CreateStore(result, variable, false);
+        result = load;
+    }
+    break;
     default:
         break;
     }
 
     return result;
-}
-
-static llvm::Value *assignment(llvm::Value *expr, const hclang::Identifier &id,
-                               hclang::Operator op, hclang::SymbolTable<llvm::Value*> &symbols) {
-    auto to = symbols.find(id);
-    if(!to) {
-        return nullptr;
-    }
-    return assignment(expr, to, op);
 }
 
 /**
@@ -448,13 +488,62 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
     case O::BitwiseXor:
         return builder.CreateXor(lhs, rhs, "bitxortmp");
         break;
+        // All comparisons need to be cast to a 64 bit integer.
+    case O::Equals:
+        return builder.CreateICmpEQ(lhs, rhs, "eqtmp");
+        break;
     case O::NotEquals:
         return builder.CreateICmpNE(lhs, rhs, "neqtmp");
+        break;
+    case O::GreaterThanEqual:
+        if(signedOp) {
+            return builder.CreateICmpSGE(lhs, rhs, "gtetmp");
+        }
+        return builder.CreateICmpUGE(lhs, rhs, "gtetmp");
+        break;
+    case O::LessThanEqual:
+        if(signedOp) {
+            return builder.CreateICmpSLE(lhs, rhs, "ltetmp");
+        }
+        return builder.CreateICmpSLE(lhs, rhs, "ltetmp");
+        break;
+    case O::GreaterThan:
+        if(signedOp) {
+            return builder.CreateICmpSGT(lhs, rhs, "gttmp");
+        }
+        return builder.CreateICmpUGT(lhs, rhs, "gttmp");
+        break;
+    case O::LessThan:
+        if(signedOp) {
+            return builder.CreateICmpSLT(lhs, rhs, "lttmp");
+        }
+        return builder.CreateICmpSLT(lhs, rhs, "lttmp");
         break;
     default:
         break;
     }
 
+    return nullptr;
+}
+
+static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op) {
+    if(!expr) {
+        return nullptr;
+    }
+
+    switch(op) {
+    case O::Negative:
+        return builder.CreateNeg(expr, "negatetmp");
+        break;
+    case O::BitwiseNot:
+        return builder.CreateNot(expr, "nottmp");
+        break;
+    case O::Positive:
+        return expr;
+        break;
+    default:
+        break;
+    }
     return nullptr;
 }
 
@@ -615,7 +704,7 @@ hclang::LLV hclang::VariableInitialization::toLLVM(parserContext &pc) const {
     auto alloca = hclang::VariableDeclaration::toLLVM(pc);
     auto rhs = mRhs->toLLVM(pc);
 
-    return assignment(rhs, alloca, hclang::Operator::Assignment);
+    return assignment(rhs, alloca, nullptr, hclang::Operator::Assignment);
 }
 
 hclang::LLV hclang::Program::toLLVM(parserContext &pc) const {
@@ -629,14 +718,50 @@ hclang::LLV hclang::Program::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::BinaryOperator::toLLVM(parserContext &pc) const {
-    if(isAssignment()) {
-        return assignment(mRhs->toLLVM(pc), mLhs->toLLVM(pc), mOp, mLhs->getType());
+    auto result = binaryOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp);
+    // HACK: for LLVM
+    // If comparison, insert a cast.
+    if(isComparison(mOp)) {
+        result = hclang::LLVMCast(mLhs->getType(), result).toLLVM(pc);
     }
-    return binaryOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp);
+
+    return result;
 }
 
 hclang::LLV hclang::UnaryOperator::toLLVM(parserContext &pc) const {
     return unaryOperation(mExpr->toLLVM(pc), mOp);
+}
+
+hclang::LLV hclang::UnaryAssignment::toLLVM(parserContext &pc) const {
+    auto type = mExpr->getType();
+
+    auto load = LToRValue(mExpr).toLLVM(pc);
+
+    auto expr = mExpr->toLLVM(pc);
+    switch(type.type) {
+    case hct::U8i:
+    case hct::I8i:
+        return assignment(integerConstant(UINT8_C(1)), expr, load, mOp);
+        break;
+    case hct::U16i:
+    case hct::I16i:
+        return assignment(integerConstant(UINT16_C(1)), expr, load, mOp);
+        break;
+    case hct::U32i:
+    case hct::I32i:
+        return assignment(integerConstant(UINT32_C(1)), expr, load, mOp);
+        break;
+    case hct::U64i:
+    case hct::I64i:
+        return assignment(integerConstant(UINT64_C(1)), expr, load, mOp);
+        break;
+    case hct::F64:
+        return assignment(f64Constant(1.0), expr, load, mOp);
+        break;
+    default:
+        break;
+    }
+    return nullptr;
 }
 
 hclang::LLV hclang::DeclarationStatement::toLLVM(parserContext &pc) const {
@@ -722,7 +847,7 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     auto condElse = condFalse;
     auto merge = llvm::BasicBlock::Create(context, "ifcont", curFn);
 
-    builder.CreateCondBr(mConditional->toLLVM(pc), condTrue, condFalse);
+    builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), condTrue, condFalse);
 
     blockStack.push(condTrue);
     mBody->toLLVM(pc);
@@ -788,4 +913,41 @@ hclang::LLV hclang::Return::toLLVM(parserContext &pc) const {
     }
 
     return builder.CreateRet(nullptr);
+}
+
+hclang::LLV hclang::LLVMCast::toLLVM(parserContext &pc) const {
+    // TODO check expression's type.
+    if(!mExpr) {
+        throw std::invalid_argument("Cast: Child is null");
+    }
+    switch(mType.type) {
+    case hct::I8i:
+    case hct::U8i:
+        return builder.CreateIntCast(mExpr, llvm::Type::getInt8Ty(context), false);
+        break;
+    case hct::I16i:
+    case hct::U16i:
+        return builder.CreateIntCast(mExpr, llvm::Type::getInt16Ty(context), false);
+        break;
+    case hct::I32i:
+    case hct::U32i:
+        return builder.CreateIntCast(mExpr, llvm::Type::getInt32Ty(context), false);
+        break;
+    case hct::I64i:
+    case hct::U64i:
+        return builder.CreateIntCast(mExpr, llvm::Type::getInt64Ty(context), false);
+        break;
+        break;
+    default:
+        break;
+    }
+    return nullptr;
+}
+
+hclang::LLV hclang::BinaryAssignment::toLLVM(parserContext &pc) const {
+    if(!mLhs || !mRhs) {
+        return nullptr;
+    }
+
+    return assignment(mRhs->toLLVM(pc), mLhs->toLLVM(pc), LToRValue(mLhs).toLLVM(pc), mOp);
 }

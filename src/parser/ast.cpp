@@ -613,6 +613,12 @@ std::list<hclang::GR> hclang::BinaryOperator::getChildren() const {
     return { mLhs, mRhs };
 }
 
+// Binary Assignment
+
+std::list<hclang::GR> hclang::BinaryAssignment::getChildren() const {
+    return { mLhs, mRhs };
+}
+
 // UnaryOperator.
 
 void hclang::UnaryOperator::pprint() const {
@@ -625,6 +631,12 @@ std::string_view hclang::UnaryOperator::getClassName() const {
 }
 
 std::list<hclang::GR> hclang::UnaryOperator::getChildren() const {
+    return { mExpr };
+}
+
+// UnaryAssignment
+
+std::list<hclang::GR> hclang::UnaryAssignment::getChildren() const {
     return { mExpr };
 }
 
@@ -785,6 +797,33 @@ std::string_view hclang::operatorToString(hclang::Operator op) {
         break;
     case O::GreaterThan:
         return "> (Greater than)";
+        break;
+    case O::PostfixPlusPlus:
+        return "++ (Postfix Increment)";
+        break;
+    case O::PostfixMinusMinus:
+        return "++ (Postfix Decrement)";
+        break;
+    case O::PrefixPlusPlus:
+        return "++ (Prefix Increment)";
+        break;
+    case O::PrefixMinusMinus:
+        return "++ (Prefix Decrement)";
+        break;
+    case O::Negative:
+        return "- (Unary Negative)";
+        break;
+    case O::Positive:
+        return "+ (Unary Positive)";
+        break;
+    case O::SizeOf:
+        return "Sizeof";
+        break;
+    case O::AddressOf:
+        return "& (Unary Address of)";
+        break;
+    case O::Dereference:
+        return "* (Unary pointer dereference)";
         break;
     default:
         break;

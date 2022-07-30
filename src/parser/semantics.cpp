@@ -9,14 +9,13 @@ using hct = hclang::HCType;
 
 void hclang::If::parseSemantics(semanticContext &sc) {
     mConditional->parseSemantics(sc);
+
     if(auto type = mConditional->getType();
        type.isIntrinsic() && !type.isVoid()) {
+        // Cast to U64i to make comparisons uniform.
         if(type.type != HCType::U64i) {
             mConditional = hclang::makeImpCast(mConditional, typeInfo {});
         }
-        // Compare to 0.
-        mConditional = makeBinOp(Operator::NotEquals, mConditional, makeIntConst(0, typeInfo {}));
-        mConditional->parseSemantics(sc);
     } else {
         throw std::runtime_error("Error: if statement conditional must take an \
 expression that returns an intrinsic type");
@@ -111,6 +110,38 @@ void hclang::BinaryOperator::parseSemantics(semanticContext &sc) {
     }
 }
 
+
+void hclang::BinaryAssignment::parseSemantics(semanticContext &sc) {
+    mLhs->parseSemantics(sc);
+    mRhs->parseSemantics(sc);
+
+    auto lType = mLhs->getType();
+    auto rType = mRhs->getType();
+
+    if(lType.isVoid()) {
+        throw std::invalid_argument("L is void");
+    }
+    if(rType.isVoid()) {
+        throw std::invalid_argument("R is void");
+    }
+
+    if(lType == rType) {
+        mType = lType;
+        return;
+    }
+
+    if(!lType.isIntrinsic()) {
+        throw std::invalid_argument("L is not intrinsic");
+    }
+
+    if(!rType.isIntrinsic()) {
+        throw std::invalid_argument("R is not intrinsic");
+    }
+
+    mRhs = makeImpCast(mRhs, lType);
+    mType = lType;
+}
+
 void hclang::UnaryOperator::parseSemantics(semanticContext &sc) {
     mExpr->parseSemantics(sc);
 
@@ -119,7 +150,10 @@ void hclang::UnaryOperator::parseSemantics(semanticContext &sc) {
     if(isArithmetic(mOp) && !childType.isIntrinsic()) {
         throw std::invalid_argument("Not an intrinsic");
     }
+
+    mType = childType;
 }
+
 
 void hclang::IntegerConstant::parseSemantics(semanticContext &sc) {
 }
@@ -175,6 +209,7 @@ void hclang::DeclarationReference::parseSemantics(semanticContext &sc) {
 
 void hclang::LToRValue::parseSemantics(semanticContext &sc) {
     mDeclRef->parseSemantics(sc);
+    mType = mDeclRef->getType();
 }
 
 

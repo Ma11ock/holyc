@@ -251,6 +251,12 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             continue;
         }
 
+        if(hclang::isOperator(type)) {
+            pushTokenToFront();
+            result->add(expressionCompoundStart());
+            continue;
+        }
+
         switch(type) {
         case TT::RCurlyBracket:
             if(!bracketed) {
@@ -490,6 +496,24 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
     case TT::Rparen:
         ys.push(O::Rightparen, mLookAhead);
         break;
+    case TT::LessThan:
+        ys.push(O::LessThan, mLookAhead);
+        break;
+    case TT::GreaterThan:
+        ys.push(O::GreaterThan, mLookAhead);
+        break;
+    case TT::LessThanEqual:
+        ys.push(O::LessThanEqual, mLookAhead);
+        break;
+    case TT::GreaterThanEqual:
+        ys.push(O::GreaterThanEqual, mLookAhead);
+        break;
+    case TT::Equality:
+        ys.push(O::Equals, mLookAhead);
+        break;
+    case TT::Inequality:
+        ys.push(O::NotEquals, mLookAhead);
+        break;
     default:
         break;
     }
@@ -497,12 +521,13 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
 
 hclang::exp ParseTreeImpl::expressionArgumentStart() {
     YardShunter ys;
+
+    // Eat the ( token.
+    getNextLookahead();
     // Left recursion.
     while(getNextLookahead() != TT::Rparen) {
         expressionStart(ys);
     }
-
-    ys.push(O::Rightparen, mLookAhead);
 
     // Reduce remaining operations.
     return ys.reduce();
@@ -620,20 +645,25 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
         case 1:
         {
             auto texpr = postfixEvalStack.top();
+            postfixEvalStack.pop();
             hclang::exp expr = nullptr;
-            if(std::holds_alternative<hclang::declRef>(texpr) &&
-               o.op != O::AddressOf) {
-                expr = hclang::makeL2Rval(std::get<hclang::declRef>(texpr));
+            if(std::holds_alternative<hclang::declRef>(texpr)) {
+                if(o.op == O::AddressOf || hclang::isAssignment(o.op)) {
+                    postfixEvalStack.push(hclang::makeUnAsgn(o.op, std::get<hclang::declRef>(texpr), o.lex));
+                    break;
+                } else {
+                    expr = hclang::makeL2Rval(std::get<hclang::declRef>(texpr));
+                }
             } else {
                 expr = std::get<hclang::exp>(texpr);
             }
-            postfixEvalStack.pop();
-            postfixEvalStack.push(std::make_shared<hclang::UnaryOperator>(o.op, expr, o.lex));
+            postfixEvalStack.push(hclang::makeUnOp(o.op, expr, o.lex));
         }
             break;
         case 2:
         {
             auto trhs = postfixEvalStack.top();
+            postfixEvalStack.pop();
             hclang::exp rhs = nullptr;
             // Convert Lvalues to Rvalues.
             if(std::holds_alternative<hclang::declRef>(trhs)) {
@@ -641,13 +671,14 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
             } else {
                 rhs = std::get<hclang::exp>(trhs);
             }
-            postfixEvalStack.pop();
 
             hclang::exp lhs = nullptr;
             auto tlhs = postfixEvalStack.top();
+            postfixEvalStack.pop();
             if(std::holds_alternative<hclang::declRef>(tlhs)) {
                 if(hclang::isAssignment(o.op)) {
-                    lhs = std::get<hclang::declRef>(tlhs);
+                    postfixEvalStack.push(hclang::makeBinAsgn(o.op, std::get<hclang::declRef>(tlhs), rhs, o.lex));
+                    break;
                 } else {
                     lhs = hclang::makeL2Rval(std::get<hclang::declRef>(tlhs));
                 }
@@ -655,7 +686,6 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
                 lhs = std::get<hclang::exp>(tlhs);
             }
 
-            postfixEvalStack.pop();
             postfixEvalStack.push(hclang::makeBinOp(o.op, lhs, rhs, o.lex));
         }
             break;

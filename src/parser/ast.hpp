@@ -154,6 +154,10 @@ namespace hclang {
         case Operator::OrAssignment:
         case Operator::AndAssignment:
         case Operator::XorAssignment:
+        case Operator::PrefixMinusMinus:
+        case Operator::PrefixPlusPlus:
+        case Operator::PostfixMinusMinus:
+        case Operator::PostfixPlusPlus:
             return true;
             break;
         default:
@@ -172,6 +176,21 @@ namespace hclang {
             break;
         }
         return true;
+    }
+
+    inline bool isComparison(Operator op) {
+        switch(op) {
+        case Operator::LessThan:
+        case Operator::LessThanEqual:
+        case Operator::GreaterThan:
+        case Operator::GreaterThanEqual:
+        case Operator::NotEquals:
+        case Operator::Equals:
+            return true;
+        default:
+            break;
+        }
+        return false;
     }
 
     /**
@@ -599,10 +618,9 @@ namespace hclang {
     using binOp = std::shared_ptr<BinaryOperator>;
 
     template<typename... Args>
-    inline binOp makeBinOp(Operator op, Args &&...args) {
-        return std::make_shared<BinaryOperator>(op, std::forward<Args>(args)...);
+    inline binOp makeBinOp(Args &&...args) {
+        return std::make_shared<BinaryOperator>(std::forward<Args>(args)...);
     }
-
 
     /**
      * Unary operator language construct (any operator with one argument).
@@ -638,12 +656,19 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
         virtual void parseSemantics(semanticContext &sc);
-    private:
+    protected:
         /// Operator category.
         Operator mOp;
         /// Left hand side of the operator.
         exp mExpr;
     };
+
+    using unOp = std::shared_ptr<UnaryOperator>;
+
+    template<typename... Args>
+    inline unOp makeUnOp(Args &&...args) {
+        return std::make_shared<UnaryOperator>(std::forward<Args>(args)...);
+    }
 
     /**
      * Dummy class for constant values.
@@ -1207,6 +1232,61 @@ namespace hclang {
     inline declRef makeDeclRef(Args &&...args) {
         return std::make_shared<DeclarationReference>(std::forward<Args>(args)...);
     }
+
+    class BinaryAssignment : public BinaryOperator {
+    public:
+        BinaryAssignment(Operator op, declRef lhs, exp rhs, const Lexeme &l = Lexeme())
+            : BinaryOperator(op, lhs, rhs, l),mLhs(lhs) { }
+
+        virtual ~BinaryAssignment() = default;
+        /**
+         * Generate LLVM byteco<decl>de.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        virtual void parseSemantics(semanticContext &sc);
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::list<GR> getChildren() const;
+    protected:
+        declRef mLhs;
+    };
+
+    using binAsgn = std::shared_ptr<BinaryAssignment>;
+
+    template<typename... Args>
+    inline binAsgn makeBinAsgn(Args &&...args) {
+        return std::make_shared<BinaryAssignment>(std::forward<Args>(args)...);
+    }
+
+    class UnaryAssignment : public UnaryOperator {
+    public:
+        UnaryAssignment(Operator op, declRef expr, const Lexeme &l = Lexeme())
+            : UnaryOperator(op, expr, l),mExpr(expr) { }
+        virtual ~UnaryAssignment() = default;
+        /**
+         * Generate LLVM byteco<decl>de.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::list<GR> getChildren() const;
+    protected:
+        declRef mExpr;
+    };
+
+    using unAsgn = std::shared_ptr<UnaryOperator>;
+
+    template<typename... Args>
+    inline unAsgn makeUnAsgn(Args &&...args) {
+        return std::make_shared<UnaryAssignment>(std::forward<Args>(args)...);
+    }
+
 
     class LToRValue : public Expression {
     public:

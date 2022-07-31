@@ -103,7 +103,9 @@ protected:
     hclang::cmpdStmnt compoundStatementStart(bool &nextIsFunc);
 
     hclang::exp expressionCompoundStart();
-    hclang::exp expressionArgumentStart();
+    hclang::exp expressionArgumentStart(bool lparenStart = true, bool rparenEnds = true);
+    hclang::expList expressionList(bool semicolonEnds = false, bool lparenStarts = true);
+
     void expressionStart(YardShunter &ys);
 
     hclang::ret returnStart();
@@ -113,6 +115,7 @@ protected:
     hclang::cmpdStmnt elseStart();
 
     hclang::whileStmnt whileStart();
+    hclang::forStmnt forStart();
 };
 
 #define parseRet(funcall) {                     \
@@ -184,6 +187,7 @@ hclang::ifStmnt ParseTreeImpl::ifStart() {
                               elseIfStart(), elseStart(), mLookAhead);
         break;
     default:
+        pushTokenToFront();
         break;
     }
     return nullptr;
@@ -213,6 +217,24 @@ hclang::whileStmnt ParseTreeImpl::whileStart() {
     }
     break;
     default:
+        pushTokenToFront();
+        break;
+    }
+    return nullptr;
+}
+
+hclang::forStmnt ParseTreeImpl::forStart() {
+    getNextLookahead();
+    bool nextIsFunc = false;
+    switch(mLookAhead.getTokenType()) {
+    case TT::For:
+        return hclang::makeFor(expressionList(true, true), expressionCompoundStart(),
+                               expressionList(false, false), compoundStatementStart(nextIsFunc),
+                               mLookAhead);
+        break;
+    break;
+    default:
+        pushTokenToFront();
         break;
     }
     return nullptr;
@@ -306,6 +328,10 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
         case TT::While:
             pushTokenToFront();
             result->add(whileStart());
+            break;
+        case TT::For:
+            pushTokenToFront();
+            result->add(forStart());
             break;
         case TT::Identifier:
             // Check if variable or function.
@@ -552,13 +578,40 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
     }
 }
 
-hclang::exp ParseTreeImpl::expressionArgumentStart() {
-    YardShunter ys;
+hclang::expList ParseTreeImpl::expressionList(bool semicolonEnds, bool lparenStarts) {
+    // Ignore (
+    if(lparenStarts && getNextLookahead() != TT::Lparen) {
+        throw std::invalid_argument("need (");
+    }
 
-    // Eat the ( token.
+    // Determine ending delimiter.
+    auto endTok = semicolonEnds ? TT::Semicolon : TT::Rparen;
+    hclang::expList result;
+
+    // Loop until until ending delimiter. Make a new expression for each ','.
     getNextLookahead();
+    while(mLookAhead != endTok) {
+        YardShunter ys;
+        while(mLookAhead != TT::Comma && mLookAhead != endTok) {
+            expressionStart(ys);
+            getNextLookahead();
+        }
+
+        result.push_back(ys.reduce());
+    }
+
+    return result;
+}
+
+hclang::exp ParseTreeImpl::expressionArgumentStart(bool lparenStart, bool rparenEnds) {
+    YardShunter ys;
+    // Eat the ( token.
+    if(lparenStart && getNextLookahead() != TT::Lparen) {
+        throw std::invalid_argument("need (");
+    }
     // Left recursion.
-    while(getNextLookahead() != TT::Rparen) {
+    auto endTok = rparenEnds ? TT::Rparen : TT::Comma;
+    while(getNextLookahead() != endTok) {
         expressionStart(ys);
     }
 

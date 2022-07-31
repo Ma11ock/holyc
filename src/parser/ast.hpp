@@ -514,6 +514,12 @@ namespace hclang {
     using exp = std::shared_ptr<Expression>;
 
     /**
+     * Alias to a list of expressions.
+     * @see exp
+     */
+    using expList = std::list<exp>;
+
+    /**
      * Cast one intrinsic into another.
      */
     class Cast : public Expression {
@@ -954,6 +960,48 @@ namespace hclang {
     template<typename... Args>
     inline whileStmnt makeWhile(Args &&...args) {
         return std::make_shared<While>(std::forward<Args>(args)...);
+    }
+
+    class For : public Statement {
+    public:
+        For(expList startExpressions, exp conditional, expList endExpressions, cmpdStmnt body,
+            const Lexeme &l = Lexeme())
+            : Statement(l),mStartExps(startExpressions),mConditional(conditional),
+              mEndExps(endExpressions),mBody(body) { }
+
+        virtual ~For() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+
+        virtual void parseSemantics(semanticContext &sc);
+    protected:
+        expList mStartExps;
+        exp mConditional;
+        expList mEndExps;
+        cmpdStmnt mBody;
+    };
+
+    using forStmnt = std::shared_ptr<For>;
+
+    template<typename... Args>
+    inline forStmnt makeFor(Args &&...args) {
+        return std::make_shared<For>(std::forward<Args>(args)...);
     }
 
     /**

@@ -739,6 +739,30 @@ std::list<hclang::GR> hclang::While::getChildren() const {
     return { scastGR(mConditional), scastGR(mBody) };
 }
 
+// For
+
+void hclang::For::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::For::getClassName() const {
+    return "ForStatement";
+}
+
+std::list<hclang::GR> hclang::For::getChildren() const {
+    std::list<hclang::GR> result;
+    for(auto &startExp : mStartExps) {
+        result.push_back(startExp);
+    }
+    result.push_back(mConditional);
+    for(auto &endExp : mEndExps) {
+        result.push_back(endExp);
+    }
+    result.push_back(mBody);
+    return result;
+}
+
+
 // Functions.
 
 std::string_view hclang::operatorToString(hclang::Operator op) {

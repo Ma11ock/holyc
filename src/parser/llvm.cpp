@@ -888,14 +888,37 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
 hclang::LLV hclang::While::toLLVM(parserContext &pc) const {
     // Create the blocks that will house the loop branches.
     llvm::Function *curFn = builder.GetInsertBlock()->getParent();
-    auto condTrue = llvm::BasicBlock::Create(context, "cond_true", curFn);
+    auto whileLoop = llvm::BasicBlock::Create(context, "while_loop", curFn);
     auto merge = llvm::BasicBlock::Create(context, "while_cont", curFn);
 
-    builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), condTrue, merge);
+    builder.CreateBr(whileLoop);
 
-    blockStack.push(condTrue);
+    blockStack.push(whileLoop);
     mBody->toLLVM(pc);
-    builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), condTrue, merge);
+    builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), whileLoop, merge);
+    blockStack.pop();
+
+    blockStack.push(merge);
+    return nullptr;
+}
+
+hclang::LLV hclang::For::toLLVM(parserContext &pc) const {
+    llvm::Function *curFn = builder.GetInsertBlock()->getParent();
+    auto forLoop = llvm::BasicBlock::Create(context, "for_loop", curFn);
+    auto merge = llvm::BasicBlock::Create(context, "for_cont", curFn);
+
+    for(auto &startExp : mStartExps) {
+        startExp->toLLVM(pc);
+    }
+
+    builder.CreateBr(forLoop);
+
+    blockStack.push(forLoop);
+    mBody->toLLVM(pc);
+    for(auto &endExp : mEndExps) {
+        endExp->toLLVM(pc);
+    }
+    builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), forLoop, merge);
     blockStack.pop();
 
     blockStack.push(merge);

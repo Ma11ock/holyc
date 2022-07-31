@@ -589,12 +589,14 @@ hclang::expList ParseTreeImpl::expressionList(bool semicolonEnds, bool lparenSta
     hclang::expList result;
 
     // Loop until until ending delimiter. Make a new expression for each ','.
-    getNextLookahead();
-    while(mLookAhead != endTok) {
+    for(getNextLookahead(); mLookAhead != endTok; getNextLookahead()) {
         YardShunter ys;
-        while(mLookAhead != TT::Comma && mLookAhead != endTok) {
+
+        for(; mLookAhead != TT::Comma && mLookAhead != endTok; getNextLookahead()) {
             expressionStart(ys);
-            getNextLookahead();
+        }
+        if(mLookAhead == endTok) {
+            pushTokenToFront();
         }
 
         result.push_back(ys.reduce());

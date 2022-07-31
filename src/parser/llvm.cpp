@@ -915,6 +915,7 @@ hclang::LLV hclang::For::toLLVM(parserContext &pc) const {
 
     blockStack.push(forLoop);
     mBody->toLLVM(pc);
+
     for(auto &endExp : mEndExps) {
         endExp->toLLVM(pc);
     }

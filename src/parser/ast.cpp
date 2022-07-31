@@ -863,6 +863,12 @@ std::string_view hclang::operatorToString(hclang::Operator op) {
     case O::Dereference:
         return "* (Unary pointer dereference)";
         break;
+    case O::LogicalAnd:
+        return "&& (Binary logical and)";
+        break;
+    case O::LogicalOr:
+        return "|| (Binary logical or)";
+        break;
     default:
         break;
     }

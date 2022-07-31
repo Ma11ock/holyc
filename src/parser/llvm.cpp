@@ -480,9 +480,11 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
         return builder.CreateLShr(lhs, rhs, "lshrtmp", exact);
         break;
     case O::BitwiseAnd:
+    case O::LogicalAnd:
         return builder.CreateAnd(lhs, rhs, "bitandtmp");
         break;
     case O::BitwiseOr:
+    case O::LogicalOr:
         return builder.CreateOr(lhs, rhs, "bitortmp");
         break;
     case O::BitwiseXor:

@@ -573,6 +573,12 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
     case TT::Inequality:
         ys.push(O::NotEquals, mLookAhead);
         break;
+    case TT::LogicalAnd:
+        ys.push(O::LogicalAnd, mLookAhead);
+        break;
+    case TT::LogicalOr:
+        ys.push(O::LogicalOr, mLookAhead);
+        break;
     default:
         break;
     }

@@ -80,6 +80,10 @@ namespace hclang {
         std::list<std::unordered_map<Identifier, T, identifierHashFun>> mTableStack;
     };
 
+    /**
+     * Class that manages the symbol table context. Uses RAII to ensure
+     * that the symbol table gets popped when it goes out of scope.
+     */
     template<typename T>
     class SymTableCtx {
     public:
@@ -92,7 +96,7 @@ namespace hclang {
             mSymbolTable.popTable();
         }
 
-        inline SymbolTable<T> &getSymbolTale() const {
+        inline SymbolTable<T> &getSymbolTable() const {
             return mSymbolTable;
         }
     protected:

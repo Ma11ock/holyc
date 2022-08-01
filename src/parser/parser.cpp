@@ -309,7 +309,6 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
     auto result = hclang::makeCmpdStmnt();
     bool shouldContinue = true;
     bool bracketed = false;
-    mSymbolTable.pushTable();
     if(getNextLookahead() == TT::LCurlyBracket) {
         bracketed = true;
     } else {
@@ -342,7 +341,7 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             continue;
         }
 
-        if(hclang::isOperator(type)) {
+        if(hclang::isOperator(type) && type != TT::Identifier) {
             pushTokenToFront();
             result->add(expressionCompoundStart());
             continue;
@@ -402,7 +401,6 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
         }
     }
 
-    mSymbolTable.popTable();
     return result;
 }
 
@@ -414,7 +412,8 @@ void ParseTreeImpl::parseTokens() {
 
 hclang::GR ParseTreeImpl::programStart() {
 
-    mSymbolTable.pushTable();
+    hclang::SymTableCtx ctx(mSymbolTable); // Object ensures symbol table is popped.
+
     bool shouldContinue = true;
     while(shouldContinue) {
         bool nextIsFunc = false;
@@ -430,7 +429,6 @@ hclang::GR ParseTreeImpl::programStart() {
         }
     }
 
-    mSymbolTable.popTable();
     return nullptr;
 }
 

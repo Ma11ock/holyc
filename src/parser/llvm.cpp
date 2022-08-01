@@ -942,11 +942,9 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::CompoundStatement::toLLVM(parserContext &pc) const {
-    pc.symbolTable.pushTable();
     for(const auto &statement : mStatementList) {
         statement->toLLVM(pc);
     }
-    pc.symbolTable.popTable();
     return nullptr;
 }
 

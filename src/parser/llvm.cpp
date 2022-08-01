@@ -994,3 +994,15 @@ hclang::LLV hclang::BinaryAssignment::toLLVM(parserContext &pc) const {
 
     return assignment(mRhs->toLLVM(pc), mLhs->toLLVM(pc), LToRValue(mLhs).toLLVM(pc), mOp);
 }
+
+hclang::LLV hclang::Goto::toLLVM(parserContext &pc) const {
+    return nullptr;
+}
+
+hclang::LLV hclang::LabelReference::toLLVM(parserContext &pc) const {
+    return nullptr;
+}
+
+hclang::LLV hclang::Label::toLLVM(parserContext &pc) const {
+    return nullptr;
+}

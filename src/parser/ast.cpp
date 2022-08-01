@@ -353,6 +353,10 @@ std::list<hclang::GR> hclang::VariableDeclaration::getChildren() const {
     return {};
 }
 
+hclang::Declaration::Type hclang::VariableDeclaration::getDeclType() const {
+    return Type::Variable;
+}
+
 // Return.
 
 void hclang::Return::pprint() const {
@@ -687,6 +691,10 @@ std::list<hclang::GR> hclang::FunctionDeclaration::getChildren() const {
     return { mDefinition };
 }
 
+hclang::Declaration::Type hclang::FunctionDeclaration::getDeclType() const {
+    return Type::Function;
+}
+
 // If.
 
 void hclang::If::pprint() const {
@@ -737,6 +745,48 @@ std::string_view hclang::While::getClassName() const {
 
 std::list<hclang::GR> hclang::While::getChildren() const {
     return { scastGR(mConditional), scastGR(mBody) };
+}
+
+// Goto
+
+void hclang::Goto::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::Goto::getClassName() const {
+    return "Goto";
+}
+
+std::list<hclang::GR> hclang::Goto::getChildren() const {
+    return { scastGR(mLabel) };
+}
+
+// Label
+
+void hclang::Label::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::Label::getClassName() const {
+    return "Label";
+}
+
+std::list<hclang::GR> hclang::Label::getChildren() const {
+    return { };
+}
+
+// LabelReference
+
+void hclang::LabelReference::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::LabelReference::getClassName() const {
+    return "LabelReference";
+}
+
+std::list<hclang::GR> hclang::LabelReference::getChildren() const {
+    return { };
 }
 
 // For

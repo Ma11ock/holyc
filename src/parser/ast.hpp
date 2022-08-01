@@ -1004,10 +1004,117 @@ namespace hclang {
         return std::make_shared<For>(std::forward<Args>(args)...);
     }
 
+    class Label : public GrammarRule {
+    public:
+        Label(const Identifier &id, const Lexeme &lexeme = Lexeme())
+            : GrammarRule(lexeme),mId(id) { }
+        virtual ~Label() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+
+        virtual void parseSemantics(semanticContext &sc);
+    protected:
+        Identifier mId;
+    };
+
+    using label = std::shared_ptr<Label>;
+
+    template<typename... Args>
+    inline label makeLabel(Args &&...args) {
+        return std::make_shared<Label>(std::forward<Args>(args)...);
+    }
+
+    class LabelReference : public GrammarRule {
+    public:
+        LabelReference(const Identifier &id, const Lexeme &lexeme = Lexeme())
+            : GrammarRule(lexeme),mId(id) { }
+        virtual ~LabelReference() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics(semanticContext &sc);
+    protected:
+        Identifier mId;
+    };
+
+    using labelRef = std::shared_ptr<Label>;
+
+    template<typename... Args>
+    inline labelRef makeLabelRef(Args &&...args) {
+        return std::make_shared<LabelReference>(std::forward<Args>(args)...);
+    }
+
+    class Goto : public Statement {
+    public:
+        Goto(labelRef label, const Lexeme &lexeme = Lexeme())
+            : Statement(lexeme),mLabel(label) { }
+        virtual ~Goto() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+
+        virtual void parseSemantics(semanticContext &sc);
+    protected:
+        labelRef mLabel;
+    };
+
+    using gotoStmnt = std::shared_ptr<Goto>;
+
+    template<typename... Args>
+    inline gotoStmnt makeGoto(Args &&...args) {
+        return std::make_shared<Goto>(std::forward<Args>(args)...);
+    }
+
     /**
      * Dummy class for Declaration productions.
      */
-    class Declaration : public GrammarRule {
+    class Declaration : public Statement {
     public:
         /// Defaulted constructor.
         Declaration() : mId(""),mType(),mStorageClass() {}
@@ -1015,13 +1122,13 @@ namespace hclang {
          * Value constructor. Set the lexeme.
          */
         Declaration(const Lexeme &l)
-            : GrammarRule(l),mId(l),mType(),mStorageClass() { }
+            : Statement(l),mId(l),mType(),mStorageClass() { }
         /**
          * Value constructor. Set the lexeme.
          */
         Declaration(const Identifier &id, typeInfo type,
                     StorageClass sclass = StorageClass::Default, const Lexeme &l = Lexeme())
-            : GrammarRule(l),mId(id),mType(type),mStorageClass(sclass) { }
+            : Statement(l),mId(id),mType(type),mStorageClass(sclass) { }
         /// Destructor. Default.
         virtual ~Declaration() = default;
         const inline Identifier &getIdRef() const { return mId; }
@@ -1035,6 +1142,13 @@ namespace hclang {
         }
 
         virtual void parseSemantics(semanticContext &sc);
+
+        enum class Type {
+            Variable,
+            Function,
+        };
+
+        virtual Type getDeclType() const = 0;
     protected:
         /// Identifier of the declared variable.
         Identifier mId;
@@ -1050,7 +1164,7 @@ namespace hclang {
      */
     using decl = std::shared_ptr<Declaration>;
 
-    class FunctionDefinition : public GrammarRule {
+    class FunctionDefinition : public Statement {
     public:
         FunctionDefinition() = default;
         virtual ~FunctionDefinition() = default;
@@ -1111,6 +1225,7 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
         virtual void parseSemantics(semanticContext &sc);
 
+        virtual Type getDeclType() const;
     protected:
         funcDefn mDefinition;
     };
@@ -1121,6 +1236,54 @@ namespace hclang {
     inline funcDecl makeFuncDecl(Args &&...args) {
         return std::make_shared<FunctionDeclaration>(std::forward<Args>(args)...);
     }
+
+    /**
+     * VariableDeclaration production rule.
+     */
+    class VariableDeclaration : public Declaration {
+    public:
+        /**
+         * Value constructor. Set the ID of the declared variable.
+         */
+        VariableDeclaration(const Identifier &id, typeInfo type,
+                            StorageClass sclass = StorageClass::Default,
+                            const Lexeme &l = Lexeme())
+            : Declaration(id, type, sclass, l) { }
+        /// Destructor. Default.
+        virtual ~VariableDeclaration() = default;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+        virtual void parseSemantics(semanticContext &sc);
+
+        virtual Type getDeclType() const;
+    };
+
+    /**
+     * Alias for shared pointer to VariableDeclaration.
+     * @see VariableDeclaration.
+     */
+    using varDecl = std::shared_ptr<VariableDeclaration>;
+
+    template<typename... Args>
+    inline varDecl makeVarDecl(Args &&...args) {
+        return std::make_shared<VariableDeclaration>(std::forward<Args>(args)...);
+    }
+
 
     class Return : public Statement {
     public:
@@ -1156,51 +1319,6 @@ namespace hclang {
     template<typename... Args>
     inline ret makeRet(Args &&...args) {
         return std::make_shared<Return>(std::forward<Args>(args)...);
-    }
-
-    /**
-     * VariableDeclaration production rule.
-     */
-    class VariableDeclaration : public Declaration {
-    public:
-        /**
-         * Value constructor. Set the ID of the declared variable.
-         */
-        VariableDeclaration(const Identifier &id, typeInfo type,
-                            StorageClass sclass = StorageClass::Default,
-                            const Lexeme &l = Lexeme())
-            : Declaration(id, type, sclass, l) { }
-        /// Destructor. Default.
-        virtual ~VariableDeclaration() = default;
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const;
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const;
-        /**
-         * Get all production rule members.
-         * @return All production rule members.
-         */
-        virtual std::list<GR> getChildren() const;
-        virtual void parseSemantics(semanticContext &sc);
-    };
-
-    /**
-     * Alias for shared pointer to VariableDeclaration.
-     * @see VariableDeclaration.
-     */
-    using varDecl = std::shared_ptr<VariableDeclaration>;
-
-    template<typename... Args>
-    inline varDecl makeVarDecl(Args &&...args) {
-        return std::make_shared<VariableDeclaration>(std::forward<Args>(args)...);
     }
 
     /**

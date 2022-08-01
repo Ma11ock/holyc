@@ -80,6 +80,25 @@ namespace hclang {
         std::list<std::unordered_map<Identifier, T, identifierHashFun>> mTableStack;
     };
 
+    template<typename T>
+    class SymTableCtx {
+    public:
+        SymTableCtx(SymbolTable<T> &symbolTable)
+            : mSymbolTable(symbolTable) {
+            mSymbolTable.pushTable();
+        }
+
+        ~SymTableCtx() {
+            mSymbolTable.popTable();
+        }
+
+        inline SymbolTable<T> &getSymbolTale() const {
+            return mSymbolTable;
+        }
+    protected:
+        SymbolTable<T> &mSymbolTable;
+    };
+
 }  // hclang
 
 #endif /* HCLANG_SYMBOLTABLE_HPP */

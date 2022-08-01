@@ -116,6 +116,9 @@ protected:
 
     hclang::whileStmnt whileStart();
     hclang::forStmnt forStart();
+
+    hclang::gotoStmnt gotoStart();
+    hclang::label labelStart();
 };
 
 #define parseRet(funcall) {                     \
@@ -265,6 +268,43 @@ hclang::forStmnt ParseTreeImpl::forStart() {
     return nullptr;
 }
 
+hclang::gotoStmnt ParseTreeImpl::gotoStart() {
+    getNextLookahead();
+    auto startLex = mLookAhead;
+    switch(startLex.getTokenType()) {
+    case TT::Goto:
+        if(auto label = labelStart();
+           label) {
+            if(getNextLookahead() != TT::Semicolon) {
+                throw std::invalid_argument("goto: expected semicolon");
+            }
+            return hclang::makeGoto(label, startLex);
+        } else {
+            throw std::invalid_argument("goto: bad label");
+        }
+        break;
+    default:
+        break;
+    }
+
+    return nullptr;
+}
+
+hclang::label ParseTreeImpl::labelStart() {
+    auto startLex = getNextLookahead();
+    bool nextIsFunc = false;
+    switch(startLex.getTokenType()) {
+    case TT::Identifier:
+        if(getNextLookahead() == TT::Colon) {
+            return hclang::makeLabel(hclang::Identifier(startLex),  startLex);
+        }
+        break;
+    default:
+        break;
+    }
+    return nullptr;
+}
+
 hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
     auto result = hclang::makeCmpdStmnt();
     bool shouldContinue = true;
@@ -319,6 +359,8 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
         break;
         case TT::Semicolon:
             break;
+        case TT::Switch:
+            break;
         case TT::If:
             pushTokenToFront();
             result->add(ifStart());
@@ -334,9 +376,13 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
         case TT::Identifier:
             // Check if variable or function.
             if(auto sym = mSymbolTable.find(mLookAhead.getText());
-               sym) {
+               sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {
                 pushTokenToFront();
                 result->add(expressionCompoundStart());
+            } else if(sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
+                // TODO
+            } else {
+                throw std::invalid_argument(fmt::format("Invalid symbol: {}", mLookAhead.getText()));
             }
             break;
         case TT::Eof:
@@ -345,6 +391,10 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
         case TT::Return:
             pushTokenToFront();
             result->add(returnStart());
+            break;
+        case TT::Goto:
+            pushTokenToFront();
+            result->add(gotoStart());
             break;
         default:
             throw std::runtime_error(fmt::format("cmpstmt: {}, {}", mLookAhead.getTokenType(), mLookAhead.getText()));

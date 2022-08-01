@@ -309,3 +309,12 @@ void hclang::Return::parseSemantics(semanticContext &sc) {
     // Coerce type being returned to type of function.
     mExp = makeImpCast(mExp, ti);
 }
+
+void hclang::Label::parseSemantics(semanticContext &sc) {
+}
+
+void hclang::LabelReference::parseSemantics(semanticContext &sc) {
+}
+
+void hclang::Goto::parseSemantics(semanticContext &sc) {
+}

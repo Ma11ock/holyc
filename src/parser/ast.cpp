@@ -775,20 +775,6 @@ std::list<hclang::GR> hclang::Label::getChildren() const {
     return { };
 }
 
-// LabelReference
-
-void hclang::LabelReference::pprint() const {
-    printDefault();
-}
-
-std::string_view hclang::LabelReference::getClassName() const {
-    return "LabelReference";
-}
-
-std::list<hclang::GR> hclang::LabelReference::getChildren() const {
-    return { };
-}
-
 // For
 
 void hclang::For::pprint() const {

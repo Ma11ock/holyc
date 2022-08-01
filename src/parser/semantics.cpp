@@ -313,8 +313,5 @@ void hclang::Return::parseSemantics(semanticContext &sc) {
 void hclang::Label::parseSemantics(semanticContext &sc) {
 }
 
-void hclang::LabelReference::parseSemantics(semanticContext &sc) {
-}
-
 void hclang::Goto::parseSemantics(semanticContext &sc) {
 }

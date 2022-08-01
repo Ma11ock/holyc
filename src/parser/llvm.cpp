@@ -997,10 +997,6 @@ hclang::LLV hclang::Goto::toLLVM(parserContext &pc) const {
     return nullptr;
 }
 
-hclang::LLV hclang::LabelReference::toLLVM(parserContext &pc) const {
-    return nullptr;
-}
-
 hclang::LLV hclang::Label::toLLVM(parserContext &pc) const {
     return nullptr;
 }

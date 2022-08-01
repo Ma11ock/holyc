@@ -15,6 +15,7 @@
 #include <stack>
 #include <queue>
 #include <deque>
+#include <unordered_map>
 
 using TT = hclang::TokenType;
 using O = hclang::Operator;
@@ -25,7 +26,7 @@ using namespace std::string_view_literals;
 class ParseTreeImpl : public hclang::ParseTree {
 public:
     ParseTreeImpl(std::shared_ptr<hclang::Lexer> lexer, const hclang::Config &config)
-        : hclang::ParseTree(lexer, config),mLookAhead(),mReduceQueue()
+        : hclang::ParseTree(lexer, config),mLookAhead(),mReduceQueue(),mSymbolTable(),mLabels()
           { }
     virtual ~ParseTreeImpl() = default;
 
@@ -81,6 +82,8 @@ protected:
     std::deque<hclang::Lexeme> mReduceQueue;
     /// Symbol table generated during parsing.
     hclang::SymbolTable<hclang::decl> mSymbolTable;
+    /// Symbol table for goto labels.
+    std::unordered_map<hclang::Identifier, hclang::label, hclang::identifierHashFun> mLabels;
 
     // Private parsing functions.
     inline void pushTokenToBack(const hclang::Lexeme &l) { mReduceQueue.push_back(l); }
@@ -118,7 +121,7 @@ protected:
     hclang::forStmnt forStart();
 
     hclang::gotoStmnt gotoStart();
-    hclang::label labelStart();
+    hclang::label labelStart(bool fromGoto = false);
 };
 
 #define parseRet(funcall) {                     \
@@ -273,7 +276,7 @@ hclang::gotoStmnt ParseTreeImpl::gotoStart() {
     auto startLex = mLookAhead;
     switch(startLex.getTokenType()) {
     case TT::Goto:
-        if(auto label = labelStart();
+        if(auto label = labelStart(true);
            label) {
             if(getNextLookahead() != TT::Semicolon) {
                 throw std::invalid_argument("goto: expected semicolon");
@@ -290,13 +293,20 @@ hclang::gotoStmnt ParseTreeImpl::gotoStart() {
     return nullptr;
 }
 
-hclang::label ParseTreeImpl::labelStart() {
+hclang::label ParseTreeImpl::labelStart(bool fromGoto) {
     auto startLex = getNextLookahead();
     bool nextIsFunc = false;
     switch(startLex.getTokenType()) {
     case TT::Identifier:
-        if(getNextLookahead() == TT::Colon) {
-            return hclang::makeLabel(hclang::Identifier(startLex),  startLex);
+        getNextLookahead();
+        pushTokenToFront();
+        if(mLookAhead == (fromGoto ? TT::Semicolon : TT::Colon)) {
+            auto result = hclang::makeLabel(hclang::Identifier(startLex),  startLex);
+            // Add self to the symbol table.
+            mLabels[startLex] = result;
+            return result;
+        } else {
+            pushTokenToFront(startLex); // Push the identifier.
         }
         break;
     default:
@@ -307,17 +317,25 @@ hclang::label ParseTreeImpl::labelStart() {
 
 hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
     auto result = hclang::makeCmpdStmnt();
-    bool shouldContinue = true;
     bool bracketed = false;
     if(getNextLookahead() == TT::LCurlyBracket) {
         bracketed = true;
     } else {
         pushTokenToFront();
     }
-
     // Left recursion for compound statement.
-    while(shouldContinue) {
+    for(bool shouldContinue = true, expectSemiColon = false; shouldContinue;) {
         getNextLookahead();
+
+        if(expectSemiColon) {
+            if(mLookAhead != TT::Semicolon) {
+                throw std::invalid_argument(fmt::format("expect semicolon, got {}({})",
+                                                        mLookAhead.getText(), mLookAhead));
+            } else {
+                expectSemiColon = false;
+                continue;
+            }
+        }
         auto type = mLookAhead.getTokenType();
         if(getTypeFrom(mLookAhead) || hclang::isSpecifier(type)) {
             pushTokenToFront();
@@ -356,8 +374,6 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             }
             break;
         break;
-        case TT::Semicolon:
-            break;
         case TT::Switch:
             break;
         case TT::If:
@@ -372,16 +388,27 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             pushTokenToFront();
             result->add(forStart());
             break;
+        case TT::Semicolon:
+            break;
         case TT::Identifier:
             // Check if variable or function.
             if(auto sym = mSymbolTable.find(mLookAhead.getText());
                sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {
                 pushTokenToFront();
                 result->add(expressionCompoundStart());
+                expectSemiColon = true;
             } else if(sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
                 // TODO
             } else {
-                throw std::invalid_argument(fmt::format("Invalid symbol: {}", mLookAhead.getText()));
+                // Check if a colon (a goto label).
+                auto startLex = mLookAhead;
+                if(getNextLookahead() == TT::Colon) {
+                    pushTokenToFront();
+                    pushTokenToFront(startLex);
+                    result->add(labelStart());
+                } else {
+                    throw std::invalid_argument(fmt::format("Invalid symbol: {}", mLookAhead.getText()));
+                }
             }
             break;
         case TT::Eof:
@@ -390,10 +417,12 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
         case TT::Return:
             pushTokenToFront();
             result->add(returnStart());
+            expectSemiColon = true;
             break;
         case TT::Goto:
             pushTokenToFront();
             result->add(gotoStart());
+            expectSemiColon = true;
             break;
         default:
             throw std::runtime_error(fmt::format("cmpstmt: {}, {}", mLookAhead.getTokenType(), mLookAhead.getText()));
@@ -406,7 +435,6 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
 
 void ParseTreeImpl::parseTokens() {
     programStart();
-
 }
 
 

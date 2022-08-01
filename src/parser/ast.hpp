@@ -1004,10 +1004,10 @@ namespace hclang {
         return std::make_shared<For>(std::forward<Args>(args)...);
     }
 
-    class Label : public GrammarRule {
+    class Label : public Statement {
     public:
         Label(const Identifier &id, const Lexeme &lexeme = Lexeme())
-            : GrammarRule(lexeme),mId(id) { }
+            : Statement(lexeme),mId(id) { }
         virtual ~Label() = default;
         /**
          * Generate LLVM bytecode.
@@ -1029,6 +1029,14 @@ namespace hclang {
 
 
         virtual void parseSemantics(semanticContext &sc);
+
+        const inline Identifier &getIdRef() const {
+            return mId;
+        }
+
+        inline Identifier getId() const {
+            return mId;
+        }
     protected:
         Identifier mId;
     };
@@ -1040,44 +1048,9 @@ namespace hclang {
         return std::make_shared<Label>(std::forward<Args>(args)...);
     }
 
-    class LabelReference : public GrammarRule {
-    public:
-        LabelReference(const Identifier &id, const Lexeme &lexeme = Lexeme())
-            : GrammarRule(lexeme),mId(id) { }
-        virtual ~LabelReference() = default;
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const;
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const;
-        /**
-         * Get all production rule members.
-         * @return All production rule members.
-         */
-        virtual std::list<GR> getChildren() const;
-
-        virtual void parseSemantics(semanticContext &sc);
-    protected:
-        Identifier mId;
-    };
-
-    using labelRef = std::shared_ptr<Label>;
-
-    template<typename... Args>
-    inline labelRef makeLabelRef(Args &&...args) {
-        return std::make_shared<LabelReference>(std::forward<Args>(args)...);
-    }
-
     class Goto : public Statement {
     public:
-        Goto(labelRef label, const Lexeme &lexeme = Lexeme())
+        Goto(label label, const Lexeme &lexeme = Lexeme())
             : Statement(lexeme),mLabel(label) { }
         virtual ~Goto() = default;
         /**
@@ -1101,7 +1074,7 @@ namespace hclang {
 
         virtual void parseSemantics(semanticContext &sc);
     protected:
-        labelRef mLabel;
+        label mLabel;
     };
 
     using gotoStmnt = std::shared_ptr<Goto>;

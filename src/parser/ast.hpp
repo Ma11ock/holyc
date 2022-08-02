@@ -35,9 +35,7 @@ namespace hclang {
     template<typename T>
     class SymbolTable;
 
-    /**
-     * Parser context information used for LLVM code generation.
-     */
+    // Forward declaration of struct used for LLVM code generation.
     struct parserContext;
 
     // Forward declartion of struct used for semantic parsing.

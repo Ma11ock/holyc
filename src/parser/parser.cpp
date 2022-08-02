@@ -27,7 +27,7 @@ class ParseTreeImpl : public hclang::ParseTree {
 public:
     ParseTreeImpl(std::shared_ptr<hclang::Lexer> lexer, const hclang::Config &config)
         : hclang::ParseTree(lexer, config),mLookAhead(),mReduceQueue(),mSymbolTable(),mLabels()
-          { }
+    { }
     virtual ~ParseTreeImpl() = default;
 
     void parseTokens();
@@ -101,7 +101,7 @@ protected:
     hclang::decl declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
                                        hclang::Identifier id);
     hclang::varInit declarationInitializationEqual(hclang::typeInfo info, hclang::StorageClass sclass,
-                                                hclang::Identifier id);
+                                                   hclang::Identifier id);
     hclang::declStmnt declarationStatementStart();
     hclang::cmpdStmnt compoundStatementStart(bool &nextIsFunc);
 
@@ -131,10 +131,10 @@ protected:
         return result;                          \
     }
 
-#define pushTableRet(funcall) {                     \
-        auto dec = funcall;                         \
-        mSymbolTable.add(dec->getIdRef(), dec);     \
-        return dec;                                 \
+#define pushTableRet(funcall) {                 \
+        auto dec = funcall;                     \
+        mSymbolTable.add(dec->getIdRef(), dec); \
+        return dec;                             \
     }
 
 static std::optional<hclang::typeInfo> getTypeFrom(const hclang::Lexeme &l);
@@ -263,7 +263,7 @@ hclang::forStmnt ParseTreeImpl::forStart() {
                                expressionList(false, false), compoundStatementStart(nextIsFunc),
                                mLookAhead);
         break;
-    break;
+        break;
     default:
         pushTokenToFront();
         break;
@@ -373,7 +373,7 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
                 shouldContinue = false;
             }
             break;
-        break;
+            break;
         case TT::Switch:
             break;
         case TT::If:
@@ -826,7 +826,7 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
             }
             postfixEvalStack.push(hclang::makeUnOp(o.op, expr, o.lex));
         }
-            break;
+        break;
         case 2:
         {
             auto trhs = postfixEvalStack.top();
@@ -855,7 +855,7 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
 
             postfixEvalStack.push(hclang::makeBinOp(o.op, lhs, rhs, o.lex));
         }
-            break;
+        break;
         case 3:
             break;
         default:

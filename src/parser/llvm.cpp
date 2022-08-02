@@ -1,3 +1,7 @@
+/***************************************************************************
+ * @file llvm.cpp                                                          *
+ * @brief LLVM code generation from abstract syntax tree. Uses LLVM 14.1.  *
+ ***************************************************************************/
 #include "parser.hpp"
 #include "ast.hpp"
 #include "symbols.hpp"
@@ -42,11 +46,22 @@ namespace hclang {
         llvm::Function *mainFunc;
     };
 
+    /**
+     * Casts LLVM bytecode object into different type of bytecode object.
+     */
     class LLVMCast : public hclang::GrammarRule {
     public:
+        /**
+         * Value constructor. Sets all members.
+         * @param type HCType that the LLVM object represents.
+         * @param expr LLVM bytecode object to cast.
+         */
         LLVMCast(typeInfo type, LLV expr) : mExpr(expr),mType(type) {
         }
 
+        /**
+         * Default destructor.
+         */
         virtual ~LLVMCast() = default;
 
         /**
@@ -72,41 +87,76 @@ namespace hclang {
             return { };
         }
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc) { }
     protected:
+        /// LLVM expression to create cast for.
         LLV mExpr;
+        /// HolyC type of `mExpr`.
         typeInfo mType;
     };
 }
 
+/**
+ * Stack of LLVM blocks for managing branching.
+ */
 class BlockStack {
 protected:
-    // The entry block.
+    /// The entry block of the current function.
     llvm::BasicBlock *mEntryBlock;
-    // Stack of blocks.
+    /// Stack of blocks for the current function.
     std::stack<llvm::BasicBlock*> mBlockStack;
-    // Merge stack for breaks in inside while loops.
+    /// Merge stack for break statements.
     std::stack<llvm::BasicBlock*> mMergeStack;
 
 public:
+    /**
+     * Default constructor, zeros out object.
+     */
     BlockStack() : mEntryBlock(nullptr),mBlockStack(),mMergeStack() {
     }
 
+    /**
+     * Default destructor.
+     */
+    ~BlockStack() = default;
+
+    /**
+     * Get the top of the block stack.
+     * @return The top of the block stack.
+     */
     llvm::BasicBlock *peek() const {
+        if(mBlockStack.size() < 1)
+            return nullptr;
         return mBlockStack.top();
     }
 
+    /**
+     * Get the top of the merge stack.
+     * @return The top of the merge stack.
+     */
     llvm::BasicBlock *peekMerge() const {
+        if(mBlockStack.size() < 1)
+            return nullptr;
         return mMergeStack.top();
     }
 
+    /**
+     * Get the current function's entry block.
+     * @return Entry block to the current function.
+     */
     llvm::BasicBlock *getEntry() const {
+        if(mBlockStack.size() < 1)
+            return nullptr;
         return mEntryBlock;
     }
 
-
     /**
      * Create an entry block for the "main"/global function.
+     * @param pc Context object that contains the global LLVM objects.
      */
     void init(hclang::parserContext &pc) {
         // Make and push the entry block.
@@ -115,6 +165,10 @@ public:
         pc.builder.SetInsertPoint(mEntryBlock);
     }
 
+    /**
+     * Pop the block stack.
+     * @param pc Context object that contains the global LLVM objects.
+     */
     void pop(hclang::parserContext &pc) {
         // Do not allow entry to popped and ignore if stack is empty.
         if(mBlockStack.size() <= 1)
@@ -122,32 +176,52 @@ public:
         mBlockStack.pop();
         pc.builder.SetInsertPoint(peek());
     }
+
+    /**
+     * Push an object onto the merge stack.
+     * @param pc Context object that contains the global LLVM objects.
+     */
     void pushMerge(llvm::BasicBlock *merge) {
         mMergeStack.push(merge);
     }
 
-    void clearMergeStack(hclang::parserContext &pc) {
+    /**
+     * Empty out the merge stack.
+     */
+    void clearMergeStack() {
         while(mMergeStack.size() != 0) {
             mMergeStack.pop();
         }
     }
 
-    void popMergeStack(hclang::parserContext &pc) {
+    /**
+     * Pop the merge stack.
+     */
+    void popMergeStack() {
         if(mMergeStack.size() == 0)
             return;
         mMergeStack.pop();
     }
 
+    /**
+     * Push block onto the stack, and set an insertion point.
+     * @param block The block to push to the stack and set insertion point to.
+     * @param pc Context object that contains the global LLVM objects.
+     */
     void push(llvm::BasicBlock *block, hclang::parserContext &pc) {
         mBlockStack.push(block);
         pc.builder.SetInsertPoint(block);
     }
-
-    ~BlockStack() = default;
 };
 
 // Static functions.
 
+/**
+ * Get an LLVM type that corresponds to HolyC type `ti`.
+ * @param ti HolyC type to convert into an LLVM type.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM type that is equivalent to `ti`.
+ */
 static llvm::Type *llvmTypeFrom(const hclang::typeInfo &ti, hclang::parserContext &pc) {
     switch(ti.type) {
     case hct::U64i:
@@ -172,59 +246,133 @@ static llvm::Type *llvmTypeFrom(const hclang::typeInfo &ti, hclang::parserContex
     return nullptr;
 }
 
+/**
+ * Generate a floating point (double) constant.
+ * @param val Double to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM f64 value equal to `val`.
+ */
 static inline llvm::Value *f64Constant(double val, hclang::parserContext &pc) {
     return llvm::ConstantFP::get(pc.context, llvm::APFloat(val));
 }
 
+/**
+ * Generate a floating point (double) constant.
+ * @param val Double to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i1 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(bool val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(1, static_cast<std::uint8_t>(val)));
 }
 
+/**
+ * Generate a 1 byte unsigned integer constant.
+ * @param val Integer to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i8 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::uint8_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(8, val, false));
 }
 
+/**
+ * Generate a 1 byte signed integer constant.
+ * @param val Integer to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i8 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::int8_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(8, val, true));
 }
 
+/**
+ * Generate a 2 byte unsigned integer constant.
+ * @param val Integer to make constant from.
+ * @return LLVM i16 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::uint16_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(16, val, false));
 }
 
+/**
+ * Generate a 2 byte signed integer constant.
+ * @param val Integer to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i16 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::int16_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(16, val, true));
 }
 
+/**
+ * Generate a 4 byte unsigned integer constant.
+ * @param val Integer to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i32 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::uint32_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(32, val, false));
 }
 
+/**
+ * Generate a 4 byte signed integer constant.
+ * @param val Integer to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i32 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::int32_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(32, val, true));
 }
 
+/**
+ * Generate a 8 byte unsigned integer constant.
+ * @param val Integer to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i64 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::uint64_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(64, val, false));
 }
 
+/**
+ * Generate a 8 byte signed integer constant.
+ * @param val Integer to make constant from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i64 value equal to `val`.
+ */
 static inline llvm::Value *integerConstant(std::int64_t val, hclang::parserContext &pc) {
     return llvm::ConstantInt::get(pc.context, llvm::APInt(64, val, true));
 }
 
-static inline llvm::Value *makePlus(llvm::Value *lhs, llvm::Value *rhs, hclang::parserContext &pc) {
-    return pc.builder.CreateFAdd(lhs, rhs, "addtmp");
-}
-
+/**
+ * Cast a 64 bit integer to a 1 bit "boolean".
+ * @param val Integer to make boolean from.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM i1 value. 1 if any bit in `expr` is 1, 0 otherwise.
+ */
 static inline llvm::Value *u64ToI1(llvm::Value *expr, hclang::parserContext &pc) {
     return pc.builder.CreateICmpNE(expr, integerConstant(UINT64_C(0), pc));
 }
 
+/**
+ * Allocate space on the stack for a local variable.
+ * DUMMY FUNCTION. JUST RETURNS NULL.
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
 template<typename T>
-static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id, hclang::parserContext &pc) {
-    static_assert(true, "Cannot generate alloca for type");
+inline static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id, hclang::parserContext &pc) {
+    return nullptr;
 }
 
+/**
+ * Allocate space on the stack for a local variable (1 byte).
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
 template<>
 llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id,
                                                    hclang::parserContext &pc) {
@@ -247,6 +395,12 @@ llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id,
     return alloca;
 }
 
+/**
+ * Allocate space on the stack for a local variable (2 bytes).
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
 template<>
 llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id,
                                                     hclang::parserContext &pc) {
@@ -270,6 +424,12 @@ llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id
 }
 
 
+/**
+ * Allocate space on the stack for a local variable (4 bytes).
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
 template<>
 llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id,
                                                     hclang::parserContext &pc) {
@@ -292,6 +452,12 @@ llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id
     return alloca;
 }
 
+/**
+ * Allocate space on the stack for a local variable (8 bytes).
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
 template<>
 llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id,
                                                     hclang::parserContext &pc) {
@@ -314,18 +480,38 @@ llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id
     return alloca;
 }
 
+/**
+ * Allocate space on the stack for a local variable.
+ * Note: <T> must be a type for which there is a template specialization.
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
 template<typename T>
 static inline llvm::Value *generateEntryBlockAlloca(std::string_view id,
                                                     hclang::parserContext &pc) {
     return generateEntryBlockAlloca<T>(hclang::Identifier(id), pc.symbolTable);
 }
 
+/**
+ * Create a load instruction from an Lvalue.
+ * Note: This is a dummy function and always returns NULL.
+ * @param name Identifier to create a load for.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM LValue of variable `name`.
+ */
 template<typename T>
 static inline llvm::Value *readLvalue(std::string_view name,
                                       hclang::parserContext &pc) {
-    static_assert(true, "Cannot read Lvalue for type");
+    return nullptr;
 }
 
+/**
+ * Create a 1 byte load instruction from an Lvalue.
+ * @param name Identifier to create a load for.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM LValue of variable `name`.
+ */
 template<>
 llvm::Value *readLvalue<std::uint8_t>(std::string_view name,
                                       hclang::parserContext &pc) {
@@ -340,6 +526,12 @@ llvm::Value *readLvalue<std::uint8_t>(std::string_view name,
         );
 }
 
+/**
+ * Create a 2 byte load instruction from an Lvalue.
+ * @param name Identifier to create a load for.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM LValue of variable `name`.
+ */
 template<>
 llvm::Value *readLvalue<std::uint16_t>(std::string_view name,
                                        hclang::parserContext &pc) {
@@ -354,6 +546,12 @@ llvm::Value *readLvalue<std::uint16_t>(std::string_view name,
         );
 }
 
+/**
+ * Create a 4 byte load instruction from an Lvalue.
+ * @param name Identifier to create a load for.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM LValue of variable `name`.
+ */
 template<>
 llvm::Value *readLvalue<std::uint32_t>(std::string_view name,
                                        hclang::parserContext &pc) {
@@ -368,6 +566,12 @@ llvm::Value *readLvalue<std::uint32_t>(std::string_view name,
         );
 }
 
+/**
+ * Create a 8 byte load instruction from an Lvalue.
+ * @param name Identifier to create a load for.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM LValue of variable `name`.
+ */
 template<>
 llvm::Value *readLvalue<std::uint64_t>(std::string_view name,
                                        hclang::parserContext &pc) {
@@ -382,12 +586,28 @@ llvm::Value *readLvalue<std::uint64_t>(std::string_view name,
         );
 }
 
+/**
+ * Create a load instruction from an Lvalue.
+ * @param dec Declaration object with an identifier to load.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM LValue of `dec`.
+ */
 template<typename T>
 static inline llvm::Value *readLvalue(hclang::decl dec,
                                       hclang::parserContext &pc) {
     return readLvalue<T>(dec->getIdRef().getId(), pc);
 }
 
+/**
+ * Make a store instruction.
+ * @param expr Value to store.
+ * @param variable Lvalue to store into.
+ * @param load The current value of `variable`. Used if `op` is not Operator::Assignment
+ * @see hclang::Operator
+ * @param op Assignment operator.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return Store instruction. NULL if any argument is invalid.
+ */
 static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable, llvm::Value *load,
                                hclang::Operator op, hclang::parserContext &pc) {
     if(!expr || !variable) {
@@ -443,15 +663,16 @@ static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable, llvm::V
 }
 
 /**
- * Create a binary operation between two LLVM values.
+ * Create a binary operation instruction for a pair of LLVM expressions.
  * @param lhs Left hand side of the operation.
  * @param rhs Right hand side of the operation.
  * @param op Operation to perform. Should be a binary operator.
  * @see hclang::Operator
+ * @param pc Context object that contains the global LLVM objects.
  * @param nowrap True if wrapping should be disabled, false if not.
  * @param signedOp True if the operation is signed, false if unsigned.
  * @param exact True if operation is "exact" (no remainder).
- * @return LLVM value generated from the operation.
+ * @return LLVM instruction generated from the operation. NULL if a parameter is invalid.
  */
 static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
                                     hclang::Operator op, hclang::parserContext &pc, bool nowrap = false,
@@ -542,6 +763,14 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
     return nullptr;
 }
 
+/**
+ * Create a unary operation instruction for an LLVM expression.
+ * @param expr Expression argument for the operator `op`.
+ * @param op Operation to perform. Should be a binary operator.
+ * @see hclang::Operator
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM instruction generated from the operation. NULL if a parameter is invalid.
+ */
 static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op, hclang::parserContext &pc) {
     if(!expr) {
         return nullptr;
@@ -563,6 +792,11 @@ static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op, hclan
     return nullptr;
 }
 
+/**
+ * Make an LLVM noop instruction.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return An LLVM instruction that does nothing and has no side effects.
+ */
 static inline llvm::Value *noOp(hclang::parserContext &pc) {
     return binaryOperation(integerConstant(UINT32_C(0), pc), integerConstant(UINT32_C(0), pc),
                            hclang::Operator::Add, pc);

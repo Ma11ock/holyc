@@ -21,49 +21,12 @@
 using O = hclang::Operator;
 using hct = hclang::HCType;
 
-namespace hclang {
-    class LLVMCast : public hclang::GrammarRule {
-    public:
-        LLVMCast(typeInfo type, LLV expr) : mExpr(expr),mType(type) {
-        }
-
-        virtual ~LLVMCast() = default;
-
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const {
-        }
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const {
-            return "LLVMCast";
-        }
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::list<GR> getChildren() const {
-            return { };
-        }
-
-        virtual void parseSemantics(semanticContext &sc) { }
-    protected:
-        LLV mExpr;
-        typeInfo mType;
-    };
-}
-
 // Static globals.
 
 static llvm::LLVMContext context;
 static llvm::IRBuilder<> builder(context);
 static llvm::Module *module = nullptr;
+/// "Main" function, contains all global code.
 static llvm::Function *mainFunc = nullptr;
 
 class BlockStack {
@@ -129,7 +92,54 @@ public:
     virtual ~BlockStack() = default;
 };
 
-static BlockStack blockStack;
+namespace hclang {
+    /**
+     * Parser context information used for LLVM code generation.
+     */
+    struct parserContext {
+        /// Symbol table with LLVM values.
+        SymbolTable<LLV> &symbolTable;
+        /// Stack used for managing branches.
+        BlockStack &blockStack;
+    };
+
+    class LLVMCast : public hclang::GrammarRule {
+    public:
+        LLVMCast(typeInfo type, LLV expr) : mExpr(expr),mType(type) {
+        }
+
+        virtual ~LLVMCast() = default;
+
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const {
+        }
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const {
+            return "LLVMCast";
+        }
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::list<GR> getChildren() const {
+            return { };
+        }
+
+        virtual void parseSemantics(semanticContext &sc) { }
+    protected:
+        LLV mExpr;
+        typeInfo mType;
+    };
+}
+
 
 // Static functions.
 
@@ -565,13 +575,14 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 
     mainFunc = llvm::Function::Create(mainFuncPrototype, llvm::GlobalValue::ExternalLinkage,
                                       "hclang_main", module);
-    blockStack.init();
 
 
     // AST->LLVM.
     SymbolTable<llvm::Value*> symbolTable;
     symbolTable.pushTable();
-    parserContext pc { symbolTable };
+    BlockStack blockStack;
+    blockStack.init();
+    parserContext pc { symbolTable, blockStack };
     mProgram.toLLVM(pc);
 
     // Insert implicit return 0 for main.
@@ -851,10 +862,10 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
 
     builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), condTrue, condFalse);
 
-    blockStack.push(condTrue);
+    pc.blockStack.push(condTrue);
     mBody->toLLVM(pc);
     builder.CreateBr(merge);
-    blockStack.pop();
+    pc.blockStack.pop();
 
     for(auto &elif : mElseIfs) {
         auto cond = elif->getConditional();
@@ -863,27 +874,27 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
         auto condElif = llvm::BasicBlock::Create(context, "cond_elif", curFn);
         auto condElifElse = llvm::BasicBlock::Create(context, "cond_elif_else", curFn);
 
-        blockStack.push(condElse);
+        pc.blockStack.push(condElse);
         builder.CreateCondBr(cond->toLLVM(pc), condElif, condElifElse);
-        blockStack.pop();
+        pc.blockStack.pop();
 
-        blockStack.push(condElif);
+        pc.blockStack.push(condElif);
         body->toLLVM(pc);
         builder.CreateBr(merge);
-        blockStack.pop();
+        pc.blockStack.pop();
 
         condElse = condElifElse;
     }
 
     // Else
-    blockStack.push(condElse);
+    pc.blockStack.push(condElse);
     if(mElseBody) {
         mElseBody->toLLVM(pc);
     }
     builder.CreateBr(merge);
-    blockStack.pop();
+    pc.blockStack.pop();
 
-    blockStack.push(merge);
+    pc.blockStack.push(merge);
     return nullptr;
 }
 
@@ -895,12 +906,12 @@ hclang::LLV hclang::While::toLLVM(parserContext &pc) const {
 
     builder.CreateBr(whileLoop);
 
-    blockStack.push(whileLoop);
+    pc.blockStack.push(whileLoop);
     mBody->toLLVM(pc);
     builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), whileLoop, merge);
-    blockStack.pop();
+    pc.blockStack.pop();
 
-    blockStack.push(merge);
+    pc.blockStack.push(merge);
     return nullptr;
 }
 
@@ -915,16 +926,16 @@ hclang::LLV hclang::For::toLLVM(parserContext &pc) const {
 
     builder.CreateBr(forLoop);
 
-    blockStack.push(forLoop);
+    pc.blockStack.push(forLoop);
     mBody->toLLVM(pc);
 
     for(auto &endExp : mEndExps) {
         endExp->toLLVM(pc);
     }
     builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc)), forLoop, merge);
-    blockStack.pop();
+    pc.blockStack.pop();
 
-    blockStack.push(merge);
+    pc.blockStack.push(merge);
     return nullptr;
 }
 

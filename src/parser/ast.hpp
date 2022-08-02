@@ -38,10 +38,7 @@ namespace hclang {
     /**
      * Parser context information used for LLVM code generation.
      */
-    struct parserContext {
-        /// Symbol table with LLVM values.
-        SymbolTable<LLV> &symbolTable;
-    };
+    struct parserContext;
 
     // Forward declartion of struct used for semantic parsing.
     struct semanticContext;

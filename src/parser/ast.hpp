@@ -429,6 +429,10 @@ namespace hclang {
 
         virtual void setLexeme(std::optional<Lexeme> l);
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc) = 0;
     protected:
         /// Lexeme that began this production rule.
@@ -533,6 +537,10 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::list<GR> getChildren() const;
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
     protected:
         /// Expression to cast.
@@ -552,6 +560,10 @@ namespace hclang {
          * @return Class name.
          */
         virtual std::string_view getClassName() const;
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
     };
 
@@ -595,6 +607,10 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
 
         inline bool isAssignment() const {
@@ -650,6 +666,10 @@ namespace hclang {
          */
         virtual std::list<GR> getChildren() const;
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
     protected:
         /// Operator category.
@@ -747,6 +767,10 @@ namespace hclang {
          * @return All production rule members.
          */
         virtual std::list<GR> getChildren() const;
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
 
         inline IntegerConstant &operator==(const IntegerConstant &ic) {
@@ -805,6 +829,10 @@ namespace hclang {
             return mStatementList.empty();
         }
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
     protected:
         statementList mStatementList;
@@ -842,6 +870,10 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
 
         inline exp getConditional() const {
@@ -892,6 +924,10 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
     protected:
         /// Boolean expression. TODO implicit comparison to 0.
@@ -937,6 +973,10 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
     protected:
         exp mConditional;
@@ -978,6 +1018,10 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
     protected:
         expList mStartExps;
@@ -1017,6 +1061,10 @@ namespace hclang {
         virtual std::list<GR> getChildren() const;
 
 
+        /**
+         * Perform semantic parsing of `this` and children. Ensures rules of
+         * HolyC, like the type system, are followed.
+         */
         virtual void parseSemantics(semanticContext &sc);
 
         const inline Identifier &getIdRef() const {
@@ -1126,79 +1174,6 @@ namespace hclang {
      */
     using decl = std::shared_ptr<Declaration>;
 
-    class FunctionDefinition : public Statement {
-    public:
-        FunctionDefinition() = default;
-        virtual ~FunctionDefinition() = default;
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const;
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const;
-        /**
-         * Get all production rule members.
-         * @return All production rule members.
-         */
-        virtual std::list<GR> getChildren() const;
-
-        virtual void parseSemantics(semanticContext &sc);
-
-        inline typeInfo getType() const {
-            return mType;
-        }
-    protected:
-        typeInfo mType;
-    };
-
-    using funcDefn = std::shared_ptr<FunctionDefinition>;
-
-    template<typename... Args>
-    inline funcDefn makeFuncDefn(Args &&...args) {
-        return std::make_shared<FunctionDefinition>(std::forward<Args>(args)...);
-    }
-
-    class FunctionDeclaration : public Declaration {
-    public:
-        FunctionDeclaration() = default;
-        virtual ~FunctionDeclaration() = default;
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const;
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const;
-        /**
-         * Get all production rule members.
-         * @return All production rule members.
-         */
-        virtual std::list<GR> getChildren() const;
-        virtual void parseSemantics(semanticContext &sc);
-
-        virtual Type getDeclType() const;
-    protected:
-        funcDefn mDefinition;
-    };
-
-    using funcDecl = std::shared_ptr<FunctionDeclaration>;
-
-    template<typename... Args>
-    inline funcDecl makeFuncDecl(Args &&...args) {
-        return std::make_shared<FunctionDeclaration>(std::forward<Args>(args)...);
-    }
-
     /**
      * VariableDeclaration production rule.
      */
@@ -1246,6 +1221,95 @@ namespace hclang {
         return std::make_shared<VariableDeclaration>(std::forward<Args>(args)...);
     }
 
+
+    class FunctionDefinition : public Statement {
+    public:
+        FunctionDefinition(typeInfo type, cmpdStmnt body,
+                           std::optional<Lexeme> l = std::nullopt)
+            : Statement(l),mType(type),mBody(body) { }
+        virtual ~FunctionDefinition() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+
+        virtual void parseSemantics(semanticContext &sc);
+
+        inline typeInfo getType() const {
+            return mType;
+        }
+    protected:
+        typeInfo mType;
+        cmpdStmnt mBody;
+    };
+
+    using funcDefn = std::shared_ptr<FunctionDefinition>;
+
+    template<typename... Args>
+    inline funcDefn makeFuncDefn(Args &&...args) {
+        return std::make_shared<FunctionDefinition>(std::forward<Args>(args)...);
+    }
+
+    class FunctionDeclaration : public Declaration {
+    public:
+        FunctionDeclaration(typeInfo type, const Identifier &id, funcDefn defn,
+                            std::list<varDecl> args, StorageClass sclass,
+                            std::optional<Lexeme> l = std::nullopt)
+            : Declaration(id, type, sclass, l),mDefinition(defn),mArgs(args) { }
+
+        FunctionDeclaration(typeInfo type, const Identifier &id, std::list<varDecl> args,
+                            StorageClass sclass, std::optional<Lexeme> l = std::nullopt)
+            : Declaration(id, type, sclass, l),mDefinition(nullptr),mArgs(args) { }
+
+        virtual ~FunctionDeclaration() = default;
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+        virtual void parseSemantics(semanticContext &sc);
+
+        virtual Type getDeclType() const;
+
+        inline bool hasDefinition() const {
+            return static_cast<bool>(mDefinition);
+        }
+    protected:
+        funcDefn mDefinition;
+        std::list<varDecl> mArgs;
+    };
+
+    using funcDecl = std::shared_ptr<FunctionDeclaration>;
+
+    template<typename... Args>
+    inline funcDecl makeFuncDecl(Args &&...args) {
+        return std::make_shared<FunctionDeclaration>(std::forward<Args>(args)...);
+    }
 
     class Return : public Statement {
     public:

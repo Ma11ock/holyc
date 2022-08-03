@@ -33,5 +33,6 @@ int main(int argc, const char * const * argv) {
                    fmt::styled("fatal error: ", fmt::emphasis::bold | fg(fmt::color::red)),
                    e.what());
     }
+    fmt::print("");
     return 0;
 }

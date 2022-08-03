@@ -97,7 +97,8 @@ protected:
     hclang::Lexeme getNextLookahead();
     hclang::GR programStart();
     hclang::decl declarationSpecifiers(std::optional<hclang::typeInfo> info = std::nullopt,
-                                       hclang::StorageClass sclass = hclang::StorageClass::Default);
+                                       hclang::StorageClass sclass = hclang::StorageClass::Default,
+                                       bool isFuncArg = false);
     hclang::decl declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
                                        hclang::Identifier id);
     hclang::varInit declarationInitializationEqual(hclang::typeInfo info, hclang::StorageClass sclass,
@@ -105,7 +106,7 @@ protected:
     hclang::declStmnt declarationStatementStart();
     hclang::cmpdStmnt compoundStatementStart(bool &nextIsFunc);
 
-    hclang::exp expressionCompoundStart();
+    hclang::exp expressionCompoundStart(bool stopComma = false);
     hclang::exp expressionArgumentStart();
     hclang::expList expressionList(bool semicolonEnds = false, bool lparenStarts = true);
 
@@ -122,6 +123,9 @@ protected:
 
     hclang::gotoStmnt gotoStart();
     hclang::label labelStart(bool fromGoto = false);
+
+    hclang::funcDecl funcDeclStart(hclang::typeInfo info, hclang::StorageClass sclass,
+                                   hclang::Identifier id);
 };
 
 #define parseRet(funcall) {                     \
@@ -396,7 +400,7 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
                sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {
                 pushTokenToFront();
                 result->add(expressionCompoundStart());
-                expectSemiColon = true;
+                expectSemiColon = false;
             } else if(sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
                 // TODO
             } else {
@@ -461,7 +465,7 @@ hclang::GR ParseTreeImpl::programStart() {
 }
 
 hclang::decl ParseTreeImpl::declarationSpecifiers(std::optional<hclang::typeInfo> info,
-                                                  hclang::StorageClass sclass) {
+                                                  hclang::StorageClass sclass, bool isFunc) {
     getNextLookahead();
     // Check for type.
     if(auto ti = getTypeFrom(mLookAhead); ti) {
@@ -503,17 +507,17 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
     getNextLookahead();
 
     switch(mLookAhead.getTokenType()) {
+    case TT::Lparen:
+        pushTokenToFront();
+        parseRet(funcDeclStart(info, sclass, id));
+        break;
     case TT::Semicolon:
+    case TT::Comma:
         pushTokenToFront();
         pushTableRet(hclang::makeVarDecl(id, info, sclass, mLookAhead));
         break;
     case TT::Equals:
         parseRet(declarationInitializationEqual(info, sclass, id));
-        break;
-    case TT::Comma:
-        // TODO
-        pushTokenToFront();
-        pushTableRet(hclang::makeVarDecl(id, info, sclass, mLookAhead));
         break;
     default:
         break;
@@ -521,10 +525,21 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
     throw std::invalid_argument("declid");
 }
 
+hclang::funcDecl ParseTreeImpl::funcDeclStart(hclang::typeInfo info, hclang::StorageClass sclass,
+                                              hclang::Identifier id) {
+    // Get function argument list TODO.
+
+    getNextLookahead();
+    getNextLookahead();
+    bool nextIsFunc = false;
+    return hclang::makeFuncDecl(info, id, hclang::makeFuncDefn(info, compoundStatementStart(nextIsFunc)),
+                                std::list<hclang::varDecl>(), sclass, mLookAhead);
+}
+
 hclang::varInit ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
                                                               hclang::StorageClass sclass,
                                                               hclang::Identifier id) {
-    pushTableRet(hclang::makeVarInit(id, info, expressionCompoundStart()));
+    pushTableRet(hclang::makeVarInit(id, info, expressionCompoundStart(true)));
 }
 
 hclang::declStmnt ParseTreeImpl::declarationStatementStart() {
@@ -534,7 +549,7 @@ hclang::declStmnt ParseTreeImpl::declarationStatementStart() {
     auto info = result->getType().value();
     auto sclass = result->getStorageClass().value_or(hclang::StorageClass::Default);
     // Left recursion.
-    while(mLookAhead == TT::Comma) {
+    while(getNextLookahead() == TT::Comma) {
         // TODO sclass might not be passed here, or only certain specifiers are.
         result->push(declarationSpecifiers(info, sclass));
     }
@@ -700,10 +715,11 @@ hclang::exp ParseTreeImpl::expressionArgumentStart() {
     return ys.reduce();
 }
 
-hclang::exp ParseTreeImpl::expressionCompoundStart() {
+hclang::exp ParseTreeImpl::expressionCompoundStart(bool stopComma) {
     YardShunter ys;
     // Left recursion.
-    while(getNextLookahead() != TT::Semicolon) {
+    while(getNextLookahead() != TT::Semicolon &&
+          !(stopComma && (mLookAhead == TT::Comma))) {
         expressionStart(ys);
     }
 
@@ -718,6 +734,7 @@ void ParseTreeImpl::parseSemantics() {
     mProgram.parseSemantics(sc);
     if(mConfig.shouldDumpAst()) {
         mProgram.pprint();
+    } else {
     }
 }
 

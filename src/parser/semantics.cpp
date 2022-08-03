@@ -214,9 +214,16 @@ void hclang::Declaration::parseSemantics(semanticContext &sc) {
 }
 
 void hclang::FunctionDefinition::parseSemantics(semanticContext &sc) {
+    mBody->parseSemantics(sc);
 }
 
 void hclang::FunctionDeclaration::parseSemantics(semanticContext &sc) {
+    for(auto arg : mArgs)  {
+        arg->parseSemantics(sc);
+    }
+    if(mDefinition) {
+        mDefinition->parseSemantics(sc);
+    }
 }
 
 void hclang::VariableDeclaration::parseSemantics(semanticContext &sc) {

@@ -569,10 +569,17 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
     case TT::IntegerConstant:
         ys.push(hclang::makeIntConst(mLookAhead));
         break;
-    case TT::Identifier: // TODO could be function, need further parsing.
-        ys.push(hclang::makeDeclRef(hclang::Identifier(mLookAhead),
-                                    hclang::DeclarationReference::Type::LValue,
-                                    mSymbolTable, mLookAhead));
+    case TT::Identifier:
+        if(auto sym = mSymbolTable.find(mLookAhead.getText());
+           sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {
+            ys.push(hclang::makeDeclRef(hclang::Identifier(mLookAhead),
+                                        hclang::DeclarationReference::Type::LValue,
+                                        mSymbolTable, mLookAhead));
+        } else if(sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
+            // TODO
+        } else {
+            throw std::invalid_argument(fmt::format("Undefined identifier: {}", mLookAhead.getText()));
+        }
         break;
     case TT::Star:
         // TODO unary *.

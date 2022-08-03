@@ -363,9 +363,14 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             continue;
         }
 
-        if(hclang::isOperator(type) && type != TT::Identifier) {
+        if(hclang::isMaybeUnaryOperator(type) && type != TT::Identifier) {
             pushTokenToFront();
             result->add(expressionCompoundStart());
+            // Left recursion.
+            while(getNextLookahead() == TT::Comma) {
+                result->add(expressionCompoundStart());
+            }
+            pushTokenToFront();
             continue;
         }
 
@@ -414,6 +419,17 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
                     throw std::invalid_argument(fmt::format("Invalid symbol: {}", mLookAhead.getText()));
                 }
             }
+            break;
+        case TT::IntegerConstant:
+        case TT::FloatConstant:
+        case TT::Lparen:
+            pushTokenToFront();
+            result->add(expressionCompoundStart(true));
+            // Left recursion.
+            while(getNextLookahead() == TT::Comma) {
+                result->add(expressionCompoundStart());
+            }
+            pushTokenToFront();
             break;
         case TT::Eof:
             shouldContinue = false;
@@ -589,10 +605,7 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
         ys.push(O::Divide, mLookAhead);
         break;
     case TT::Plus:
-        if(!ys.lastObjWasOp()) {
-            ys.push(O::Add, mLookAhead);
-        }
-        // Ignore positive.
+        ys.push(ys.lastObjWasOp() ? O::Positive : O::Add, mLookAhead);
         break;
     case TT::Minus:
         ys.push(ys.lastObjWasOp() ? O::Negative : O::Subtract, mLookAhead);

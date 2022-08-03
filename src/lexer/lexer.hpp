@@ -161,6 +161,7 @@ namespace hclang {
     bool isKeyword(TokenType type);
     bool isSpecifier(TokenType type);
     bool isOperator(TokenType type);
+    bool isMaybeUnaryOperator(TokenType type);
     bool isType(TokenType type);
 }
 

@@ -320,8 +320,6 @@ hclang::IntegerConstant::IntegerConstant(std::string_view source,
         // U64 is default integer type.
         *this = makeU64(source, base, l);
     }
-
-
 }
 
 void hclang::IntegerConstant::pprint() const {

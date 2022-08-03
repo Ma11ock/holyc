@@ -487,8 +487,8 @@ hclang::Lexeme hclang::Lexer::pull() {
         // Constants.
         Token("^'.'", TT::CharacterConstant),
         Token("^\".*\"", TT::StringConstant), // Maybe multiline?
-        Token("^(0x[0-9A-Fa-f]+|[-0-9]+)(U8|I8|U16|I16|U32|I32|U64|I64)?", TT::IntegerConstant),
-        Token("^([-0-9](\\.[0-9](e[-0-9])?)?)+", TT::FloatConstant), // TODO HC might allow hex float constants.
+        Token("^(0x[0-9A-Fa-f]+|[0-9]+)(U8|I8|U16|I16|U32|I32|U64|I64)?", TT::IntegerConstant),
+        Token("^([0-9](\\.[0-9](e[-0-9])?)?)+", TT::FloatConstant), // TODO HC might allow hex float constants.
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
         Token("^[_a-zA-Z][_\\w]*:", TT::Label),
     };
@@ -607,6 +607,25 @@ bool hclang::isOperator(hclang::TokenType type) {
     case TT::ModuloEqual:
     case TT::OrEqual:
     case TT::AndEqual:
+    case TT::PlusPlus:
+    case TT::MinusMinus:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
+bool hclang::isMaybeUnaryOperator(TokenType type) {
+    switch(type) {
+    case TT::Plus:
+    case TT::Minus:
+    case TT::Star:
+    case TT::Identifier:
+    case TT::Ampersand:
+    case TT::BitwiseNot:
+    case TT::Sizeof:
     case TT::PlusPlus:
     case TT::MinusMinus:
         return true;

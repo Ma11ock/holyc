@@ -398,9 +398,7 @@ namespace hclang {
          * Value constructor. Set the lexeme.
          * @param lexeme Value to set `lexeme` to.
          */
-        GrammarRule(const Lexeme &lexeme) : mLexeme(lexeme) {}
-        /// Defaulted constructor.
-        GrammarRule() = default;
+        GrammarRule(std::optional<Lexeme> lexeme = std::nullopt) : mLexeme(lexeme) {}
         /// Destructor. Default.
         virtual ~GrammarRule() = default;
         /**
@@ -429,7 +427,7 @@ namespace hclang {
             return DEFAULT_LEX;
         }
 
-        virtual void setLexeme(const Lexeme &l);
+        virtual void setLexeme(std::optional<Lexeme> l);
 
         virtual void parseSemantics(semanticContext &sc) = 0;
     protected:
@@ -451,13 +449,11 @@ namespace hclang {
      */
     class Statement : public GrammarRule {
     public:
-        /// Defaulted constructor.
-        Statement() = default;
         /**
          * Value constructor. Set the lexeme.
          * @param lexeme Value to set `lexeme` to.
          */
-        Statement(const Lexeme &l) : GrammarRule(l) {}
+        Statement(std::optional<Lexeme> l = std::nullopt) : GrammarRule(l) { }
     };
 
     /**
@@ -477,20 +473,18 @@ namespace hclang {
      */
     class Expression : public Statement {
     public:
-        /// Default constructor. Defaulted.
-        Expression() = default;
         /**
          * Value constructor. Sets all fields.
          * @param type Type of the integer constant. Must be Ux or Ix where x > 0.
          * @param lex Lexeme for the expression.
          */
-        Expression(typeInfo type, const Lexeme &lex = Lexeme())
-            : Statement(lex),mType(type) {}
+        Expression(typeInfo type, std::optional<Lexeme> lex = std::nullopt)
+            : Statement(lex),mType(type) { }
         /**
          * Value constructor. Sets the beginning lexeme.
          * @param l Lexeme that began this grammar production.
          */
-        Expression(const hclang::Lexeme &l) : Statement(l),mType() {}
+        Expression(std::optional<Lexeme> l = std::nullopt) : Statement(l),mType() {}
         /// Default destructor. Defaulted.
         virtual ~Expression() = default;
 
@@ -519,7 +513,7 @@ namespace hclang {
      */
     class Cast : public Expression {
     public:
-        Cast(exp expr, typeInfo into, const Lexeme l = Lexeme());
+        Cast(exp expr, typeInfo into, std::optional<Lexeme> l = std::nullopt);
         /// Defaulted destructor.
         virtual ~Cast() = default;
         /**
@@ -579,7 +573,7 @@ namespace hclang {
          * @param lhs Left hand side of the operator.
          * @param rhs Right hand side of the operator.
          */
-        BinaryOperator(Operator op, exp lhs, exp rhs, const Lexeme &l = Lexeme())
+        BinaryOperator(Operator op, exp lhs, exp rhs, std::optional<Lexeme> l = std::nullopt)
             : Expression(l),mOp(op),mLhs(lhs),mRhs(rhs) {}
         /// Defaulted destructor.
         virtual ~BinaryOperator() = default;
@@ -634,7 +628,7 @@ namespace hclang {
          * @param lhs Left hand side of the operator.
          * @param rhs Right hand side of the operator.
          */
-        UnaryOperator(Operator op, exp expr, const Lexeme &l = Lexeme())
+        UnaryOperator(Operator op, exp expr, std::optional<Lexeme> l = std::nullopt)
             : Expression(l),mOp(op),mExpr(expr) {}
         /// Defaulted destructor.
         virtual ~UnaryOperator() = default;
@@ -683,7 +677,7 @@ namespace hclang {
          * @param type The type value of the constant.
          * @param lexeme Value to set `lexeme` to.
          */
-        Constant(typeInfo type, const Lexeme &l = Lexeme()) : Expression(type, l) {}
+        Constant(typeInfo type, std::optional<Lexeme> l = std::nullopt) : Expression(type, l) {}
         /// Defaulted destructor.
         virtual ~Constant() = default;
     };
@@ -693,14 +687,14 @@ namespace hclang {
      */
     class IntegerConstant : public Constant {
     public:
-        static IntegerConstant makeI8(std::string_view src, int base, const Lexeme &l);
-        static IntegerConstant makeU8(std::string_view src, int base, const Lexeme &l);
-        static IntegerConstant makeI16(std::string_view src, int base, const Lexeme &l);
-        static IntegerConstant makeU16(std::string_view src, int base, const Lexeme &l);
-        static IntegerConstant makeI32(std::string_view src, int base, const Lexeme &l);
-        static IntegerConstant makeU32(std::string_view src, int base, const Lexeme &l);
-        static IntegerConstant makeI64(std::string_view src, int base, const Lexeme &l);
-        static IntegerConstant makeU64(std::string_view src, int base, const Lexeme &l);
+        static IntegerConstant makeI8(std::string_view src, int base, std::optional<Lexeme> l);
+        static IntegerConstant makeU8(std::string_view src, int base, std::optional<Lexeme> l);
+        static IntegerConstant makeI16(std::string_view src, int base, std::optional<Lexeme> l);
+        static IntegerConstant makeU16(std::string_view src, int base, std::optional<Lexeme> l);
+        static IntegerConstant makeI32(std::string_view src, int base, std::optional<Lexeme> l);
+        static IntegerConstant makeU32(std::string_view src, int base, std::optional<Lexeme> l);
+        static IntegerConstant makeI64(std::string_view src, int base, std::optional<Lexeme> l);
+        static IntegerConstant makeU64(std::string_view src, int base, std::optional<Lexeme> l);
 
         /// Defaulted constructor.
         IntegerConstant() = default;
@@ -711,7 +705,7 @@ namespace hclang {
          * @param l Lexeme of the integer constant.
          */
         IntegerConstant(std::uint64_t value, typeInfo type,
-                        const Lexeme &l = Lexeme());
+                        std::optional<Lexeme> l = std::nullopt);
         /**
          * Value constructor. Derive integer constant from source.
          * @param source Lexeme that of the integer constant.
@@ -725,7 +719,7 @@ namespace hclang {
          * @param l Lexeme of the integer constant.
          */
         IntegerConstant(std::string_view source,
-                        const Lexeme &l = Lexeme());
+                        std::optional<Lexeme> l = std::nullopt);
         /**
          * Set the signedness of the integer constant.
          * @param isSigned True if constant is signed, false if not.
@@ -875,7 +869,7 @@ namespace hclang {
     class If : public Statement {
     public:
         If(exp conditional, cmpdStmnt body, std::list<elIf> elIfs,
-           cmpdStmnt elseBody, const Lexeme &l = Lexeme())
+           cmpdStmnt elseBody, std::optional<Lexeme> l = std::nullopt)
             : Statement(l),mConditional(conditional),mBody(body),mElseIfs(elIfs),
               mElseBody(elseBody) { }
         virtual ~If() = default;
@@ -919,7 +913,7 @@ namespace hclang {
 
     class While : public Statement {
     public:
-        While(exp conditional, cmpdStmnt body, bool isDo = false, const Lexeme &l = Lexeme())
+        While(exp conditional, cmpdStmnt body, bool isDo = false, std::optional<Lexeme> l = std::nullopt)
             : Statement(l),mConditional(conditional),mBody(body),mIsDo(isDo) { }
 
         virtual ~While() = default;
@@ -960,7 +954,7 @@ namespace hclang {
     class For : public Statement {
     public:
         For(expList startExpressions, exp conditional, expList endExpressions, cmpdStmnt body,
-            const Lexeme &l = Lexeme())
+            std::optional<Lexeme> l = std::nullopt)
             : Statement(l),mStartExps(startExpressions),mConditional(conditional),
               mEndExps(endExpressions),mBody(body) { }
 
@@ -1001,8 +995,8 @@ namespace hclang {
 
     class Label : public Statement {
     public:
-        Label(const Identifier &id, const Lexeme &lexeme = Lexeme())
-            : Statement(lexeme),mId(id) { }
+        Label(const Identifier &id, std::optional<Lexeme> l = std::nullopt)
+            : Statement(l),mId(id) { }
         virtual ~Label() = default;
         /**
          * Generate LLVM bytecode.
@@ -1045,8 +1039,8 @@ namespace hclang {
 
     class Goto : public Statement {
     public:
-        Goto(label label, const Lexeme &lexeme = Lexeme())
-            : Statement(lexeme),mLabel(label) { }
+        Goto(label label, std::optional<Lexeme> l = std::nullopt)
+            : Statement(l),mLabel(label) { }
         virtual ~Goto() = default;
         /**
          * Generate LLVM bytecode.
@@ -1085,7 +1079,7 @@ namespace hclang {
     class Declaration : public Statement {
     public:
         /// Defaulted constructor.
-        Declaration() : mId(""),mType(),mStorageClass() {}
+        Declaration() : mId(""),mType(),mStorageClass() { }
         /**
          * Value constructor. Set the lexeme.
          */
@@ -1095,7 +1089,7 @@ namespace hclang {
          * Value constructor. Set the lexeme.
          */
         Declaration(const Identifier &id, typeInfo type,
-                    StorageClass sclass = StorageClass::Default, const Lexeme &l = Lexeme())
+                    StorageClass sclass = StorageClass::Default, std::optional<Lexeme> l = std::nullopt)
             : Statement(l),mId(id),mType(type),mStorageClass(sclass) { }
         /// Destructor. Default.
         virtual ~Declaration() = default;
@@ -1215,7 +1209,7 @@ namespace hclang {
          */
         VariableDeclaration(const Identifier &id, typeInfo type,
                             StorageClass sclass = StorageClass::Default,
-                            const Lexeme &l = Lexeme())
+                            std::optional<Lexeme> l = std::nullopt)
             : Declaration(id, type, sclass, l) { }
         /// Destructor. Default.
         virtual ~VariableDeclaration() = default;
@@ -1256,7 +1250,7 @@ namespace hclang {
     class Return : public Statement {
     public:
         Return() = default;
-        Return(exp expr, const Lexeme &l = Lexeme())
+        Return(exp expr, std::optional<Lexeme> l = std::nullopt)
             : Statement(l),mExp(expr) { }
         virtual ~Return() = default;
         /**
@@ -1304,7 +1298,7 @@ namespace hclang {
         /// Destructor. Default.
         virtual ~VariableInitialization() = default;
 
-        virtual void setLexeme(const Lexeme &l);
+        virtual void setLexeme(std::optional<Lexeme> l);
         /**
          * Get class name.
          * @return Class name.
@@ -1349,7 +1343,7 @@ namespace hclang {
         };
 
         DeclarationReference(const Identifier &id, Type type,
-                             const SymbolTable<decl> &table, const Lexeme &l = Lexeme());
+                             const SymbolTable<decl> &table, std::optional<Lexeme> l = std::nullopt);
         virtual ~DeclarationReference() = default;
         /**
          * Generate LLVM byteco<decl>de.
@@ -1409,7 +1403,7 @@ namespace hclang {
 
     class BinaryAssignment : public BinaryOperator {
     public:
-        BinaryAssignment(Operator op, declRef lhs, exp rhs, const Lexeme &l = Lexeme())
+        BinaryAssignment(Operator op, declRef lhs, exp rhs, std::optional<Lexeme> l = std::nullopt)
             : BinaryOperator(op, lhs, rhs, l),mLhs(lhs) { }
 
         virtual ~BinaryAssignment() = default;
@@ -1437,7 +1431,7 @@ namespace hclang {
 
     class UnaryAssignment : public UnaryOperator {
     public:
-        UnaryAssignment(Operator op, declRef expr, const Lexeme &l = Lexeme())
+        UnaryAssignment(Operator op, declRef expr, std::optional<Lexeme> l = std::nullopt)
             : UnaryOperator(op, expr, l),mExpr(expr) { }
         virtual ~UnaryAssignment() = default;
         /**

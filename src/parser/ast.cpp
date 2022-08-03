@@ -33,18 +33,18 @@ void hclang::GrammarRule::pprint() const {
     fmt::print("0x{:x} {}", reinterpret_cast<std::size_t>(this), mLexeme);
 }
 
-void hclang::GrammarRule::setLexeme(const hclang::Lexeme &l) {
+void hclang::GrammarRule::setLexeme(std::optional<Lexeme> l) {
     if(!mLexeme) {
         mLexeme = l;
-    } else {
-        *mLexeme |= l;
+    } else if(mLexeme && l) {
+        *mLexeme |= *l;
     }
 }
 
 // IntegerConstant.
 
 hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t,
-                                         const hclang::Lexeme &l)
+                                         std::optional<Lexeme> l)
     : Constant(t, l),mValue(value),mIsSigned(false) {
     // Test intrinsic type.
     using hct = hclang::HCType;
@@ -73,7 +73,8 @@ hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t
     }
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeI8(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeI8(std::string_view src, int base,
+                                                        std::optional<Lexeme> l) {
     std::int8_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -98,7 +99,8 @@ hclang::IntegerConstant hclang::IntegerConstant::makeI8(std::string_view src, in
     return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I8i }, l);
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeU8(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeU8(std::string_view src, int base,
+                                                        std::optional<Lexeme> l) {
     std::uint8_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -122,7 +124,8 @@ hclang::IntegerConstant hclang::IntegerConstant::makeU8(std::string_view src, in
     return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::U8i }, l);
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeI16(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeI16(std::string_view src, int base,
+                                                         std::optional<Lexeme> l) {
     std::int16_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -146,7 +149,7 @@ hclang::IntegerConstant hclang::IntegerConstant::makeI16(std::string_view src, i
     return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I16i }, l);
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeU16(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeU16(std::string_view src, int base, std::optional<Lexeme> l) {
     std::uint16_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -170,7 +173,7 @@ hclang::IntegerConstant hclang::IntegerConstant::makeU16(std::string_view src, i
     return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::U16i }, l);
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeI32(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeI32(std::string_view src, int base, std::optional<Lexeme> l) {
     std::int32_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -194,7 +197,7 @@ hclang::IntegerConstant hclang::IntegerConstant::makeI32(std::string_view src, i
     return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I32i }, l);
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeU32(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeU32(std::string_view src, int base, std::optional<Lexeme> l) {
     std::uint32_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -219,7 +222,7 @@ hclang::IntegerConstant hclang::IntegerConstant::makeU32(std::string_view src, i
     return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::U32i }, l);
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeI64(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeI64(std::string_view src, int base, std::optional<Lexeme> l) {
     std::int64_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -243,7 +246,7 @@ hclang::IntegerConstant hclang::IntegerConstant::makeI64(std::string_view src, i
     return IntegerConstant(static_cast<std::uint64_t>(value), { ""sv, nullptr, HCType::I64i }, l);
 }
 
-hclang::IntegerConstant hclang::IntegerConstant::makeU64(std::string_view src, int base, const Lexeme &l) {
+hclang::IntegerConstant hclang::IntegerConstant::makeU64(std::string_view src, int base, std::optional<Lexeme> l) {
     std::uint64_t value = 0;
     auto [ptr, ec] = std::from_chars(src.begin(), src.end(), value, base);
 
@@ -269,7 +272,7 @@ hclang::IntegerConstant hclang::IntegerConstant::makeU64(std::string_view src, i
 
 
 hclang::IntegerConstant::IntegerConstant(std::string_view source,
-                                         const hclang::Lexeme &l)
+                                         std::optional<Lexeme> l)
     : Constant(hclang::typeInfo{ ""sv, nullptr, HCType::U64i }, l),mValue(0),
       mIsSigned(false) {
     // Check base.
@@ -384,7 +387,7 @@ std::list<hclang::GR> hclang::Return::getChildren() const {
 hclang::DeclarationReference::DeclarationReference(const hclang::Identifier &id,
                                                    Type type,
                                                    const hclang::SymbolTable<decl> &table,
-                                                   const Lexeme &l)
+                                                   std::optional<Lexeme> l)
     : Expression(l),mDeclType(type),mDeclRef(table.find(id))
 {
     if(mDeclRef) {
@@ -427,7 +430,7 @@ std::list<hclang::GR> hclang::LToRValue::getChildren() const {
 
 // Cast.
 
-hclang::Cast::Cast(hclang::exp expr, hclang::typeInfo into, const hclang::Lexeme l)
+hclang::Cast::Cast(hclang::exp expr, hclang::typeInfo into, std::optional<Lexeme> l)
     : hclang::Expression(into, l),mExpr(expr) {
     // TODO check that types are compatible.
 }
@@ -459,9 +462,9 @@ hclang::VariableInitialization::VariableInitialization(const hclang::Identifier 
     : hclang::VariableDeclaration(id, type),mRhs(expr) {
 }
 
-void hclang::VariableInitialization::setLexeme(const hclang::Lexeme &l) {
+void hclang::VariableInitialization::setLexeme(std::optional<Lexeme> l) {
     mLexeme = l;
-    if(mRhs) {
+    if(mRhs && l) {
         *mLexeme |= mRhs->getLexemeConst();
     }
 }

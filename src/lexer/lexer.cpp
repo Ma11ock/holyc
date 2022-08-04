@@ -406,8 +406,6 @@ hclang::Lexeme hclang::Lexer::pull() {
         // Whitespace, comments, etc.
         Token("^(\\s+|/\\*(?:[\\s\\S])*?\\*/|//.*)", TT::Space, true),
         // Keywords.
-        Token("^\\{", TT::LCurlyBracket),
-        Token("^\\}", TT::RCurlyBracket),
         Token("^if", TT::If),
         Token("^return", TT::Return),
         Token("^else", TT::Else),
@@ -441,6 +439,8 @@ hclang::Lexeme hclang::Lexer::pull() {
         Token("^throw", TT::Throw),
         Token("^lastclass", TT::Lastclass),
         // Operators and misc. grammar symbols.
+        Token("^\\{", TT::LCurlyBracket),
+        Token("^\\}", TT::RCurlyBracket),
         Token("^sizeof", TT::Sizeof),
         Token("^\\?", TT::QuestionMark),
         Token("^\\&", TT::Ampersand),

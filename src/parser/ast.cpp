@@ -362,8 +362,8 @@ hclang::Declaration::Type hclang::VariableDeclaration::getDeclType() const {
 
 void hclang::Return::pprint() const {
     printDefault();
-    if(mExp) {
-        fmt::print(" (void) ");
+    if(!mExp) {
+        fmt::print(" (void)");
         return;
     }
     fmt::print(" {}", PRIMARY(mExp->getType()));

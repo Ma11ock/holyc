@@ -1600,6 +1600,13 @@ namespace hclang {
             return mDecls.front()->getType();
         }
 
+        inline std::optional<Declaration::Type> getDeclType() const {
+            if(mDecls.empty()) {
+                return std::nullopt;
+            }
+            return mDecls.front()->getDeclType();
+        }
+
         inline std::optional<StorageClass> getStorageClass() const {
             if(mDecls.empty()) {
                 return std::nullopt;

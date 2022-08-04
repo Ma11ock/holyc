@@ -87,6 +87,9 @@ protected:
 
     // Private parsing functions.
     inline void pushTokenToBack(const hclang::Lexeme &l) { mReduceQueue.push_back(l); }
+    inline void pushListToBackDel(std::list<hclang::Lexeme> &l) {
+        // TODO
+    }
     inline void pushTokenToBack() { pushTokenToBack(mLookAhead); }
     inline void pushTokenToFront(const hclang::Lexeme &l) { mReduceQueue.push_front(l); }
     inline void pushTokenToFront() { pushTokenToFront(mLookAhead); }
@@ -124,6 +127,7 @@ protected:
     hclang::gotoStmnt gotoStart();
     hclang::label labelStart(bool fromGoto = false);
 
+    std::list<hclang::varDecl> funcDeclList();
     hclang::funcDecl funcDeclStart(hclang::typeInfo info, hclang::StorageClass sclass,
                                    hclang::Identifier id);
 };
@@ -340,29 +344,22 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
                 continue;
             }
         }
-        auto type = mLookAhead.getTokenType();
-        if(getTypeFrom(mLookAhead) || hclang::isSpecifier(type)) {
+
+        // Check if a declaration or a function definition.
+        auto typeLex = mLookAhead;
+        auto type = typeLex.getTokenType();
+        if(getTypeFrom(typeLex) || hclang::isSpecifier(type)) {
             pushTokenToFront();
-            for(hclang::Lexeme curLex;
-                (curLex = getRealNextLookahead()) != TT::LCurlyBracket;
-                pushTokenToBack(curLex)) {
-                switch(curLex.getTokenType()) {
-                case TT::Equals:
-                case TT::Semicolon:
-                    pushTokenToBack(curLex);
-                    result->add(declarationStatementStart());
-                    goto end_decl_loop;
-                    break;
-                default:
-                    break;
-                }
-            }
-            nextIsFunc = true;
-            shouldContinue = false;
-        end_decl_loop:
+            auto decl = declarationStatementStart();
+            result->add(decl);
+            nextIsFunc = *(decl->getDeclType()) == hclang::Declaration::Type::Function;
+            // TODO check if top level. If not, throw. If so, continue.
+            shouldContinue = !nextIsFunc;
+            expectSemiColon = shouldContinue;
             continue;
         }
 
+        // Check if an expression.
         if(hclang::isMaybeUnaryOperator(type) && type != TT::Identifier) {
             pushTokenToFront();
             result->add(expressionCompoundStart());
@@ -482,6 +479,7 @@ hclang::GR ParseTreeImpl::programStart() {
 
 hclang::decl ParseTreeImpl::declarationSpecifiers(std::optional<hclang::typeInfo> info,
                                                   hclang::StorageClass sclass, bool isFunc) {
+
     getNextLookahead();
     // Check for type.
     if(auto ti = getTypeFrom(mLookAhead); ti) {
@@ -541,15 +539,74 @@ hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
     throw std::invalid_argument("declid");
 }
 
+std::list<hclang::varDecl> ParseTreeImpl::funcDeclList() {
+    // Consume (
+    if(getNextLookahead() != TT::Lparen) {
+        throw std::invalid_argument("funcdecllist: expected(");
+    }
+
+    std::list<hclang::varDecl> result;
+    std::optional<hclang::typeInfo> info;
+    hclang::Lexeme varStartLexeme;
+    // Left-recursive list of variables.
+    while((varStartLexeme = getNextLookahead()) != TT::Rparen) {
+        switch(mLookAhead.getTokenType()) {
+        case TT::Identifier:
+            if(!info && (info = getTypeFrom(mLookAhead))) {
+                switch(getNextLookahead().getTokenType()) {
+                case TT::Identifier:
+                    result.push_back(hclang::makeVarDecl(mLookAhead, *info,
+                                                         hclang::StorageClass::Default, varStartLexeme));
+                    break;
+                case TT::Star:
+                    // TODO
+                    break;
+                case TT::Comma:
+                    break;
+                case TT::Rparen:
+                    pushTokenToFront();
+                    break;
+                default:
+                    break;
+                }
+            } else {
+                throw std::invalid_argument(fmt::format("Use of {}, which is not a valid type",
+                                                        mLookAhead.getText()));
+            }
+        break;
+        default:
+            break;
+        }
+    }
+    return result;
+}
+
 hclang::funcDecl ParseTreeImpl::funcDeclStart(hclang::typeInfo info, hclang::StorageClass sclass,
                                               hclang::Identifier id) {
-    // Get function argument list TODO.
+    auto args = funcDeclList();
 
-    getNextLookahead();
-    getNextLookahead();
-    bool nextIsFunc = false;
-    return hclang::makeFuncDecl(info, id, hclang::makeFuncDefn(info, compoundStatementStart(nextIsFunc)),
-                                std::list<hclang::varDecl>(), sclass, mLookAhead);
+    hclang::funcDefn definition = nullptr;
+
+    switch(getNextLookahead().getTokenType()) {
+    case TT::Semicolon:
+        pushTokenToFront();
+        break;
+    case TT::LCurlyBracket:
+    {
+        bool nextIsFunc = false;
+        pushTokenToFront();
+        definition = hclang::makeFuncDefn(info, compoundStatementStart(nextIsFunc));
+        // Push the RCurlyBracket back to the top of the stack.
+        pushTokenToFront();
+    }
+        break;
+    default:
+        throw std::invalid_argument(fmt::format("Expecetd ; or lcurly, got {}", mLookAhead.getText()));
+        break;
+    }
+
+    return hclang::makeFuncDecl(info, id, definition,
+                                args, sclass, mLookAhead);
 }
 
 hclang::varInit ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
@@ -572,6 +629,8 @@ hclang::declStmnt ParseTreeImpl::declarationStatementStart() {
 
     switch(mLookAhead.getTokenType()) {
     case TT::Semicolon:
+        pushTokenToFront();
+    case TT::RCurlyBracket:
         return result;
         break;
     default:

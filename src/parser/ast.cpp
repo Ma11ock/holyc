@@ -675,7 +675,7 @@ std::string_view hclang::FunctionDefinition::getClassName() const {
 }
 
 std::list<hclang::GR> hclang::FunctionDefinition::getChildren() const {
-    return { };
+    return { scastGR(mBody) };
 }
 
 // FunctionDeclaration.

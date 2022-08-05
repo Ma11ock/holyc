@@ -1221,12 +1221,11 @@ namespace hclang {
         return std::make_shared<VariableDeclaration>(std::forward<Args>(args)...);
     }
 
-
     class FunctionDefinition : public Statement {
     public:
         FunctionDefinition(typeInfo type, cmpdStmnt body,
                            std::optional<Lexeme> l = std::nullopt)
-            : Statement(l),mType(type),mBody(body) { }
+            : Statement(l),mBody(body),mType(type) { }
         virtual ~FunctionDefinition() = default;
         /**
          * Generate LLVM bytecode.
@@ -1252,8 +1251,8 @@ namespace hclang {
             return mType;
         }
     protected:
-        typeInfo mType;
         cmpdStmnt mBody;
+        typeInfo mType;
     };
 
     using funcDefn = std::shared_ptr<FunctionDefinition>;

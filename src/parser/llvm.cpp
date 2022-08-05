@@ -40,8 +40,10 @@ namespace hclang {
         llvm::LLVMContext &context;
         /// Builder context.
         llvm::IRBuilder<> &builder;
-        /// Main module.
+        /// Module for current object file.
         llvm::Module *module;
+        /// Function information for the current function being generated.
+        llvm::Function *curFunc;
         /// "Main" function, contains all global code.
         llvm::Function *mainFunc;
     };
@@ -104,20 +106,21 @@ namespace hclang {
  * Stack of LLVM blocks for managing branching.
  */
 class BlockStack {
-protected:
-    /// The entry block of the current function.
-    llvm::BasicBlock *mEntryBlock;
-    /// Stack of blocks for the current function.
-    std::stack<llvm::BasicBlock*> mBlockStack;
-    /// Merge stack for break statements.
-    std::stack<llvm::BasicBlock*> mMergeStack;
-
 public:
     /**
-     * Default constructor, zeros out object.
+     * Struct for blocks, and an optional "merge" block, which is pushed to the stack
+     * after a pop.
      */
-    BlockStack() : mEntryBlock(nullptr),mBlockStack(),mMergeStack() {
-    }
+    struct blockPair {
+        /// Current block.
+        llvm::BasicBlock *block;
+        /// Merge block. Pushed to stack after a pop if not null.
+        llvm::BasicBlock *merge = nullptr;
+    };
+    /**
+     * Default constructor. Create block stack.
+     */
+    BlockStack() = default;
 
     /**
      * Default destructor.
@@ -125,93 +128,109 @@ public:
     ~BlockStack() = default;
 
     /**
+     * Get the most recent merge block.
+     * @return The most recent merge block, or NULL if there isn't one.
+     */
+    inline llvm::BasicBlock *peekMerge() const {
+        for(const auto &pair : mBlockStack) {
+            if(pair.merge) {
+                return pair.merge;
+            }
+        }
+        return nullptr;
+    }
+
+    /**
      * Get the top of the block stack.
      * @return The top of the block stack.
      */
-    llvm::BasicBlock *peek() const {
-        if(mBlockStack.size() < 1)
-            return nullptr;
-        return mBlockStack.top();
+    inline blockPair peek() const {
+        if(mBlockStack.empty())
+            return blockPair { nullptr, nullptr };
+        return mBlockStack.front();
     }
 
     /**
-     * Get the top of the merge stack.
-     * @return The top of the merge stack.
-     */
-    llvm::BasicBlock *peekMerge() const {
-        if(mBlockStack.size() < 1)
-            return nullptr;
-        return mMergeStack.top();
-    }
-
-    /**
-     * Get the current function's entry block.
-     * @return Entry block to the current function.
-     */
-    llvm::BasicBlock *getEntry() const {
-        if(mBlockStack.size() < 1)
-            return nullptr;
-        return mEntryBlock;
-    }
-
-    /**
-     * Create an entry block for the "main"/global function.
+     * Pop the block stack. If the top of the stack has a merge block,
+     * push that to the stop after popping.
+     * Note: Does not allow popping off the entry block.
      * @param pc Context object that contains the global LLVM objects.
+     * @return The block pair that was popped off the stack. Or a pair of
+     * NULL if the stack was empty or just the entry block was present.
+     * @see blockPair
      */
-    void init(hclang::parserContext &pc) {
-        // Make and push the entry block.
-        mEntryBlock = llvm::BasicBlock::Create(pc.context, "entry", pc.mainFunc);
-        mBlockStack.push(mEntryBlock);
-        pc.builder.SetInsertPoint(mEntryBlock);
-    }
-
-    /**
-     * Pop the block stack.
-     * @param pc Context object that contains the global LLVM objects.
-     */
-    void pop(hclang::parserContext &pc) {
+    inline blockPair pop(hclang::parserContext &pc) {
         // Do not allow entry to popped and ignore if stack is empty.
-        if(mBlockStack.size() <= 1)
-            return;
-        mBlockStack.pop();
-        pc.builder.SetInsertPoint(peek());
-    }
-
-    /**
-     * Push an object onto the merge stack.
-     * @param pc Context object that contains the global LLVM objects.
-     */
-    void pushMerge(llvm::BasicBlock *merge) {
-        mMergeStack.push(merge);
-    }
-
-    /**
-     * Empty out the merge stack.
-     */
-    void clearMergeStack() {
-        while(mMergeStack.size() != 0) {
-            mMergeStack.pop();
+        if(mBlockStack.empty()) {
+            return blockPair { nullptr, nullptr };
         }
-    }
 
+        auto result = mBlockStack.back();
+        mBlockStack.pop_front();
+        if(result.merge) {
+            push(result.merge, pc);
+        } else {
+            setInsertPoint(pc);
+        }
+        return result;
+    }
     /**
-     * Pop the merge stack.
+     * Push block onto the stack, and set the insertion point.
+     * @param pair The block pair to push onto the stack.
+     * @param pc Context object that contains the global LLVM objects.
+     * @return The block pair that was pushed onto the stack. Or a pair
+     * of NULL if `pair.block` was NULL.
+     * @see blockPair
      */
-    void popMergeStack() {
-        if(mMergeStack.size() == 0)
-            return;
-        mMergeStack.pop();
+    inline blockPair push(blockPair pair, hclang::parserContext &pc) {
+        if(!pair.block) {
+            return blockPair { nullptr, nullptr };
+        }
+        mBlockStack.push_front(pair);
+        pc.builder.SetInsertPoint(pair.block);
+        return pair;
     }
-
+    /**
+     * Construct a new block of name `name` and push it onto the stack.
+     * @param name The name of the block to push.
+     * @param pc Context object that contains the global LLVM objects.
+     * @param merge Optional merge block.
+     * @return The block pair that was pushed onto the stack. Or a pair
+     * of NULL if `pair.block` was NULL.
+     * @see blockPair
+     */
+    inline blockPair push(std::string_view name, hclang::parserContext &pc,
+                          llvm::BasicBlock *merge = nullptr) {
+        return push(blockPair { llvm::BasicBlock::Create(pc.context, name, pc.curFunc), merge }, pc);
+    }
     /**
      * Push block onto the stack, and set an insertion point.
      * @param block The block to push to the stack and set insertion point to.
      * @param pc Context object that contains the global LLVM objects.
+     * @param merge Optional merge block.
+     * @return The block pair that was pushed onto the stack. Or a pair
+     * or NULL if `pair.block` was NULL.
+     * @see blockPair
      */
-    void push(llvm::BasicBlock *block, hclang::parserContext &pc) {
-        mBlockStack.push(block);
-        pc.builder.SetInsertPoint(block);
+    inline blockPair push(llvm::BasicBlock *block, hclang::parserContext &pc,
+                          llvm::BasicBlock *merge = nullptr) {
+        return push(blockPair { block, merge }, pc);
     }
+
+    /**
+     * Set the insertion point of the program to the top of the stack.
+     * If the stack is empty, do nothing.
+     * @param pc Context object that contains the global LLVM objects.
+     */
+    inline void setInsertPoint(hclang::parserContext &pc) const {
+        if(mBlockStack.empty()) {
+            return;
+        }
+        pc.builder.SetInsertPoint(peek().block);
+    }
+protected:
+    /// Stack of blocks for the current function.
+    std::list<blockPair> mBlockStack;
 };
 
 // Static functions.
@@ -239,6 +258,13 @@ static llvm::Type *llvmTypeFrom(const hclang::typeInfo &ti, hclang::parserContex
     case hct::U8i:
     case hct::I8i:
         return llvm::Type::getInt8Ty(pc.context);
+        break;
+    case hct::U0i:
+    case hct::I0i:
+        return llvm::Type::getVoidTy(pc.context);
+        break;
+    case hct::F64:
+        return llvm::Type::getDoubleTy(pc.context);
         break;
     default:
         break;
@@ -823,13 +849,14 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     mainFunc = llvm::Function::Create(mainFuncPrototype, llvm::GlobalValue::ExternalLinkage,
                                       "hclang_main", module);
 
-
+    BlockStack blockStack;
     // AST->LLVM.
     SymbolTable<llvm::Value*> symbolTable;
     symbolTable.pushTable();
-    BlockStack blockStack;
-    parserContext pc { symbolTable, blockStack, context, builder, module, mainFunc };
-    blockStack.init(pc);
+    parserContext pc { symbolTable, blockStack, context, builder, module,
+        mainFunc, mainFunc };
+    // Create block stack and entry block for main.
+    blockStack.push("entry", pc);
     mProgram.toLLVM(pc);
 
     // Insert implicit return 0 for main.
@@ -1101,6 +1128,9 @@ hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     // Create the blocks that will house the if-else code.
+
+
+    // Merges have to be handled manually.
     llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
     auto condTrue = llvm::BasicBlock::Create(pc.context, "cond_true", curFn);
     auto condFalse = llvm::BasicBlock::Create(pc.context, "cond_false", curFn);
@@ -1190,12 +1220,45 @@ hclang::LLV hclang::ElseIf::toLLVM(parserContext &pc) const {
     return nullptr;
 }
 
-
 hclang::LLV hclang::FunctionDefinition::toLLVM(parserContext &pc) const {
+    mBody->toLLVM(pc);
+    // TODO Insert implicit return statement.
     return nullptr;
 }
 
 hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
+    // Create argument list.
+    std::vector<llvm::Type *> args(mArgs.size(), nullptr);
+    auto mArgsIter = mArgs.begin();
+    for(auto &arg : args) {
+        arg = llvmTypeFrom((*(mArgsIter++))->getType(), pc);
+    }
+
+    // Create function.
+    auto prototype = llvm::FunctionType::get(llvmTypeFrom(getType(), pc), args, false);
+    auto func = llvm::Function::Create(prototype, llvm::GlobalValue::ExternalLinkage,
+                                       llvm::Twine(getIdRef().getId()), pc.module);
+
+    if(mDefinition) {
+        // Supply argument names and update the symbol table.
+        SymTableCtx ctx(pc.symbolTable);
+        mArgsIter = mArgs.begin();
+        for(auto &arg : func->args()) {
+            auto name = (*(mArgsIter++))->getIdRef().getId();
+            arg.setName(name);
+            pc.symbolTable[name] = &arg;
+        }
+        // Set up new block stack.
+        BlockStack bs;
+        parserContext tmpPc { pc.symbolTable, bs, pc.context, pc.builder, pc.module,
+            func, pc.mainFunc };
+        bs.push("entry", tmpPc);
+        // Codegen the definition.
+        mDefinition->toLLVM(tmpPc);
+        // Restore "main"/global state.
+        pc.blockStack.setInsertPoint(pc);
+    }
+
     return nullptr;
 }
 

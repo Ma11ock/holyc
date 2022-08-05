@@ -87,9 +87,6 @@ protected:
 
     // Private parsing functions.
     inline void pushTokenToBack(const hclang::Lexeme &l) { mReduceQueue.push_back(l); }
-    inline void pushListToBackDel(std::list<hclang::Lexeme> &l) {
-        // TODO
-    }
     inline void pushTokenToBack() { pushTokenToBack(mLookAhead); }
     inline void pushTokenToFront(const hclang::Lexeme &l) { mReduceQueue.push_front(l); }
     inline void pushTokenToFront() { pushTokenToFront(mLookAhead); }
@@ -107,7 +104,7 @@ protected:
     hclang::varInit declarationInitializationEqual(hclang::typeInfo info, hclang::StorageClass sclass,
                                                    hclang::Identifier id);
     hclang::declStmnt declarationStatementStart();
-    hclang::cmpdStmnt compoundStatementStart(bool &nextIsFunc);
+    hclang::cmpdStmnt compoundStatementStart();
 
     hclang::exp expressionCompoundStart(bool stopComma = false);
     hclang::exp expressionArgumentStart();
@@ -194,10 +191,9 @@ hclang::ret ParseTreeImpl::returnStart() {
 
 hclang::ifStmnt ParseTreeImpl::ifStart() {
     getNextLookahead();
-    bool nextIsFunc = false;
     switch(mLookAhead.getTokenType()) {
     case TT::If:
-        return hclang::makeIf(expressionArgumentStart(), compoundStatementStart(nextIsFunc),
+        return hclang::makeIf(expressionArgumentStart(), compoundStatementStart(),
                               elseIfStart(), elseStart(), mLookAhead);
         break;
     default:
@@ -208,10 +204,9 @@ hclang::ifStmnt ParseTreeImpl::ifStart() {
 }
 
 std::list<hclang::elIf> ParseTreeImpl::elseIfStart() {
-    bool nextIsFunc = false;
     std::list<hclang::elIf> result;
     while(getNextLookahead() == TT::ElseIf) {
-        result.push_back(hclang::makeElIf(expressionArgumentStart(), compoundStatementStart(nextIsFunc)));
+        result.push_back(hclang::makeElIf(expressionArgumentStart(), compoundStatementStart()));
     }
 
     pushTokenToFront();
@@ -220,10 +215,9 @@ std::list<hclang::elIf> ParseTreeImpl::elseIfStart() {
 
 hclang::cmpdStmnt ParseTreeImpl::elseStart() {
     getNextLookahead();
-    bool nextIsFunc = false;
     switch(mLookAhead.getTokenType()) {
     case TT::Else:
-        return compoundStatementStart(nextIsFunc);
+        return compoundStatementStart();
         break;
     default:
         pushTokenToFront();
@@ -234,15 +228,14 @@ hclang::cmpdStmnt ParseTreeImpl::elseStart() {
 
 hclang::whileStmnt ParseTreeImpl::whileStart() {
     getNextLookahead();
-    bool nextIsFunc = false;
     switch(mLookAhead.getTokenType()) {
     case TT::While:
-        return hclang::makeWhile(expressionArgumentStart(), compoundStatementStart(nextIsFunc), false, mLookAhead);
+        return hclang::makeWhile(expressionArgumentStart(), compoundStatementStart(), false, mLookAhead);
         break;
     case TT::Do:
     {
         auto startLex = mLookAhead;
-        auto body = compoundStatementStart(nextIsFunc);
+        auto body = compoundStatementStart();
         if(getNextLookahead() == TT::While) {
             auto conditional = expressionArgumentStart();
             if(getNextLookahead() != TT::Semicolon) {
@@ -264,11 +257,10 @@ hclang::whileStmnt ParseTreeImpl::whileStart() {
 
 hclang::forStmnt ParseTreeImpl::forStart() {
     getNextLookahead();
-    bool nextIsFunc = false;
     switch(mLookAhead.getTokenType()) {
     case TT::For:
         return hclang::makeFor(expressionList(true, true), expressionCompoundStart(),
-                               expressionList(false, false), compoundStatementStart(nextIsFunc),
+                               expressionList(false, false), compoundStatementStart(),
                                mLookAhead);
         break;
         break;
@@ -303,7 +295,6 @@ hclang::gotoStmnt ParseTreeImpl::gotoStart() {
 
 hclang::label ParseTreeImpl::labelStart(bool fromGoto) {
     auto startLex = getNextLookahead();
-    bool nextIsFunc = false;
     switch(startLex.getTokenType()) {
     case TT::Identifier:
         getNextLookahead();
@@ -323,7 +314,7 @@ hclang::label ParseTreeImpl::labelStart(bool fromGoto) {
     return nullptr;
 }
 
-hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
+hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart() {
     auto result = hclang::makeCmpdStmnt();
     bool bracketed = false;
     if(getNextLookahead() == TT::LCurlyBracket) {
@@ -352,10 +343,8 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart(bool &nextIsFunc) {
             pushTokenToFront();
             auto decl = declarationStatementStart();
             result->add(decl);
-            nextIsFunc = *(decl->getDeclType()) == hclang::Declaration::Type::Function;
             // TODO check if top level. If not, throw. If so, continue.
-            shouldContinue = !nextIsFunc;
-            expectSemiColon = shouldContinue;
+            expectSemiColon = *(decl->getDeclType()) != hclang::Declaration::Type::Function;
             continue;
         }
 
@@ -460,19 +449,7 @@ hclang::GR ParseTreeImpl::programStart() {
     hclang::SymTableCtx ctx(mSymbolTable); // Object ensures symbol table is popped.
 
     bool shouldContinue = true;
-    while(shouldContinue) {
-        bool nextIsFunc = false;
-        auto statements = compoundStatementStart(nextIsFunc);
-        mProgram.add(statements);
-        if(!statements || statements->isEmpty()) {
-            if(nextIsFunc) {
-                // TODO
-                // mProgram.add(func);
-            } else {
-                shouldContinue = false;
-            }
-        }
-    }
+    mProgram.add(compoundStatementStart());
 
     return nullptr;
 }
@@ -593,9 +570,8 @@ hclang::funcDecl ParseTreeImpl::funcDeclStart(hclang::typeInfo info, hclang::Sto
         break;
     case TT::LCurlyBracket:
     {
-        bool nextIsFunc = false;
         pushTokenToFront();
-        definition = hclang::makeFuncDefn(info, compoundStatementStart(nextIsFunc));
+        definition = hclang::makeFuncDefn(info, compoundStatementStart());
         // Push the RCurlyBracket back to the top of the stack.
         pushTokenToFront();
     }

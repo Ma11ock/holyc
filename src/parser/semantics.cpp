@@ -222,7 +222,9 @@ void hclang::FunctionDeclaration::parseSemantics(semanticContext &sc) {
         arg->parseSemantics(sc);
     }
     if(mDefinition) {
+        sc.curFunc = mDefinition;
         mDefinition->parseSemantics(sc);
+        sc.curFunc = std::nullopt;
     }
 }
 

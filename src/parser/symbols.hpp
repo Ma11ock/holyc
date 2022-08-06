@@ -18,7 +18,7 @@ namespace hclang {
 
     /**
      *
-     * Note: T needs to be a poniter (or at least nullable).
+     * Note: T needs to have some sort of default constructor ({} initializable).
      */
     template<typename T>
     class SymbolTable {
@@ -47,7 +47,7 @@ namespace hclang {
                     return true;
                 }
             }
-            return false;
+            return {};
         }
 
         inline T find(const Identifier &id) const {
@@ -58,7 +58,7 @@ namespace hclang {
                     return i->second;
                 }
             }
-            return nullptr;
+            return {};
         }
 
         inline T &operator[](const std::string_view &str) {

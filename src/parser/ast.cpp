@@ -799,6 +799,20 @@ std::list<hclang::GR> hclang::For::getChildren() const {
     return result;
 }
 
+// FunctionCall
+
+void hclang::FunctionCall::pprint() const {
+    printDefault();
+}
+
+std::string_view hclang::FunctionCall::getClassName() const {
+    return "FunctionCall";
+}
+
+std::list<hclang::GR> hclang::FunctionCall::getChildren() const {
+    // TODO include arguments.
+    return { scastGR(mFunc) };
+}
 
 // Functions.
 

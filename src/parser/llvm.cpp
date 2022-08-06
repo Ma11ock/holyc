@@ -160,6 +160,45 @@ protected:
     std::list<blockPair> mBlockStack;
 };
 
+// I really wish I was using Rust right now :/.
+/**
+ * Object for the LLVM symbol table. Holds a variable or function information.
+ */
+struct llvmSymbol {
+    llvm::Value *variable;
+    llvm::FunctionType *funcType;
+    llvm::Function *func;
+
+    bool isVar() const {
+        return static_cast<bool>(variable);
+    }
+
+    bool isFunc() const {
+        return funcType && func;
+    }
+
+    llvmSymbol() : variable(nullptr),funcType(nullptr),func(nullptr) {
+    }
+
+    llvmSymbol(llvm::Value * v) : variable(v) {
+    }
+
+    llvmSymbol(llvm::FunctionType *funcType, llvm::Function *func)
+        : variable(nullptr),funcType(funcType),func(func) {
+    }
+
+    llvmSymbol &operator=(llvm::Value *v) {
+        variable = v;
+        funcType = nullptr;
+        func = nullptr;
+        return *this;
+    }
+
+    operator bool() const {
+        return variable || funcType || func;
+    }
+};
+
 
 namespace hclang {
     /**
@@ -167,7 +206,7 @@ namespace hclang {
      */
     struct parserContext {
         /// Symbol table with LLVM values.
-        SymbolTable<LLV> &symbolTable;
+        SymbolTable<llvmSymbol> &symbolTable;
         /// Stack used for managing branches.
         BlockStack &blockStack;
         /// LLVM context.
@@ -402,8 +441,10 @@ template<>
 llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id,
                                                    hclang::parserContext &pc) {
     if(auto symbol = pc.symbolTable.find(id);
-       symbol) {
-        return symbol;
+       symbol && symbol.isVar()) {
+        return symbol.variable;
+    } else if(symbol && !symbol.isVar()) {
+        throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
 
     auto nId = id.getId();
@@ -430,8 +471,10 @@ template<>
 llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id,
                                                     hclang::parserContext &pc) {
     if(auto symbol = pc.symbolTable.find(id);
-       symbol) {
-        return symbol;
+       symbol && symbol.isVar()) {
+        return symbol.variable;
+    } else if(symbol && !symbol.isVar()) {
+        throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
     auto nId = id.getId();
 
@@ -459,8 +502,10 @@ template<>
 llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id,
                                                     hclang::parserContext &pc) {
     if(auto symbol = pc.symbolTable.find(id);
-       symbol) {
-        return symbol;
+       symbol && symbol.isVar()) {
+        return symbol.variable;
+    } else if(symbol && !symbol.isVar()) {
+        throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
     auto nId = id.getId();
 
@@ -487,8 +532,10 @@ template<>
 llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id,
                                                     hclang::parserContext &pc) {
     if(auto symbol = pc.symbolTable.find(id);
-       symbol) {
-        return symbol;
+       symbol && symbol.isVar()) {
+        return symbol.variable;
+    } else if(symbol && !symbol.isVar()) {
+        throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
     auto nId = id.getId();
 
@@ -540,7 +587,7 @@ static inline llvm::Value *readLvalue(std::string_view name,
 template<>
 llvm::Value *readLvalue<std::uint8_t>(std::string_view name,
                                       hclang::parserContext &pc) {
-    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name));
+    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
     if(!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
@@ -560,7 +607,7 @@ llvm::Value *readLvalue<std::uint8_t>(std::string_view name,
 template<>
 llvm::Value *readLvalue<std::uint16_t>(std::string_view name,
                                        hclang::parserContext &pc) {
-    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name));
+    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
     if(!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
@@ -580,7 +627,7 @@ llvm::Value *readLvalue<std::uint16_t>(std::string_view name,
 template<>
 llvm::Value *readLvalue<std::uint32_t>(std::string_view name,
                                        hclang::parserContext &pc) {
-    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name));
+    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
     if(!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
@@ -600,7 +647,7 @@ llvm::Value *readLvalue<std::uint32_t>(std::string_view name,
 template<>
 llvm::Value *readLvalue<std::uint64_t>(std::string_view name,
                                        hclang::parserContext &pc) {
-    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name));
+    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
     if(!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
@@ -851,7 +898,7 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     BlockStack blockStack;
     blockStack.push("entry", context, builder, mainFunc);
     // AST->LLVM.
-    SymbolTable<llvm::Value*> symbolTable;
+    SymbolTable<llvmSymbol> symbolTable;
     symbolTable.pushTable();
     parserContext pc { symbolTable, blockStack, context, builder, module };
     // Create block stack and entry block for main.
@@ -1095,7 +1142,7 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
-    return pc.symbolTable[getIdRef()];
+    return pc.symbolTable[getIdRef()].variable;
 }
 
 hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
@@ -1236,9 +1283,11 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
     auto prototype = llvm::FunctionType::get(llvmTypeFrom(getType(), pc), args, false);
     auto func = llvm::Function::Create(prototype, llvm::GlobalValue::ExternalLinkage,
                                        llvm::Twine(getIdRef().getId()), pc.module);
+    // TODO update symbol table with the function signature.
 
     if(mDefinition) {
         // Supply argument names and update the symbol table.
+        pc.symbolTable[getIdRef()] = llvmSymbol(prototype, func);
         SymTableCtx ctx(pc.symbolTable);
         mArgsIter = mArgs.begin();
         for(auto &arg : func->args()) {
@@ -1296,7 +1345,6 @@ hclang::LLV hclang::LLVMCast::toLLVM(parserContext &pc) const {
     case hct::U64i:
         return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt64Ty(pc.context), false);
         break;
-        break;
     default:
         break;
     }
@@ -1317,4 +1365,24 @@ hclang::LLV hclang::Goto::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::Label::toLLVM(parserContext &pc) const {
     return nullptr;
+}
+
+hclang::LLV hclang::FunctionCall::toLLVM(parserContext &pc) const {
+    std::vector<llvm::Value*> args(mArgExps.size());
+    std::size_t i = 0;
+    for(auto &argExp : mArgExps) {
+        if(argExp) {
+            args[i] = argExp->toLLVM(pc);
+        } else {
+            args[i] = nullptr; // TODO default args.
+        }
+        i++;
+    }
+    auto funcId = mFunc->getIdRef();
+    auto [_, funcType, callee] = pc.symbolTable.find(funcId);
+    // TODO callee can be NULL if its external.
+    if(!funcType || !callee) {
+        throw std::runtime_error(fmt::format("Function {} is not defined in symbol table", funcId));
+    }
+    return pc.builder.CreateCall(funcType, callee, args);
 }

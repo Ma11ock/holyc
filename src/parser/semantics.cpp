@@ -279,6 +279,12 @@ void hclang::Program::parseSemantics(semanticContext &sc) {
     }
 }
 
+void hclang::FunctionCall::parseSemantics(semanticContext &sc) {
+    for(auto &maybeArg : mArgExps) {
+        maybeArg->parseSemantics(sc);
+    }
+}
+
 
 void hclang::Return::parseSemantics(semanticContext &sc) {
     // Returns in global scope return i32's.

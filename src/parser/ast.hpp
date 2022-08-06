@@ -1298,6 +1298,10 @@ namespace hclang {
         inline bool hasDefinition() const {
             return static_cast<bool>(mDefinition);
         }
+
+        inline const std::list<varDecl> &getArgsRef() const {
+            return mArgs;
+        }
     protected:
         funcDefn mDefinition;
         std::list<varDecl> mArgs;
@@ -1397,6 +1401,43 @@ namespace hclang {
         return std::make_shared<VariableInitialization>(std::forward<Args>(args)...);
     }
 
+    class FunctionCall : public Expression {
+    public:
+        FunctionCall(funcDecl func, expList argExps, std::optional<Lexeme> l = std::nullopt)
+            : Expression(l),mFunc(func),mArgExps(argExps) {
+        }
+
+        virtual ~FunctionCall() = default;
+
+        /**
+         * Generate LLVM bytecode.
+         * @return LLVM object representing this production rule.
+         */
+        virtual LLV toLLVM(parserContext &pc) const;
+        /// Pretty print this grammar rule (does not print children).
+        virtual void pprint() const;
+        /**
+         * Get class name.
+         * @return Class name.
+         */
+        virtual std::string_view getClassName() const;
+        /**
+         * Get all production rule members.
+         * @return All production rule members.
+         */
+        virtual std::list<GR> getChildren() const;
+        virtual void parseSemantics(semanticContext &sc);
+    protected:
+        funcDecl mFunc;
+        expList mArgExps;
+    };
+
+    using funcCall = std::shared_ptr<FunctionCall>;
+
+    template<typename... Args>
+    inline funcCall makeFuncCall(Args &&...args) {
+        return std::make_shared<FunctionCall>(std::forward<Args>(args)...);
+    }
 
     class DeclarationReference : public Expression {
     public:

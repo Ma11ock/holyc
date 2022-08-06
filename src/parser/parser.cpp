@@ -387,13 +387,10 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart() {
             break;
         case TT::Identifier:
             // Check if variable or function.
-            if(auto sym = mSymbolTable.find(mLookAhead.getText());
-               sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {
+            if(mSymbolTable.find(mLookAhead.getText())) {
                 pushTokenToFront();
                 result->add(expressionCompoundStart());
                 expectSemiColon = false;
-            } else if(sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
-                // TODO
             } else {
                 // Check if a colon (a goto label).
                 auto startLex = mLookAhead;
@@ -581,8 +578,9 @@ hclang::funcDecl ParseTreeImpl::funcDeclStart(hclang::typeInfo info, hclang::Sto
         break;
     }
 
-    return hclang::makeFuncDecl(info, id, definition,
-                                args, sclass, mLookAhead);
+    auto symbol = hclang::makeFuncDecl(info, id, definition, args, sclass, mLookAhead);
+    mSymbolTable[id] = symbol;
+    return symbol;
 }
 
 hclang::varInit ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
@@ -627,7 +625,9 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
                                         hclang::DeclarationReference::Type::LValue,
                                         mSymbolTable, mLookAhead));
         } else if(sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
-            // TODO
+            // Parse function call.
+            fmt::print("A functor!\n");
+            ys.push(hclang::makeFuncCall(std::static_pointer_cast<hclang::FunctionDeclaration>(sym), expressionList()));
         } else {
             throw std::invalid_argument(fmt::format("Undefined identifier: {}", mLookAhead.getText()));
         }

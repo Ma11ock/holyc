@@ -21,6 +21,7 @@ set(SRC_SOURCES
   parser/symbols.cpp
   parser/llvm.cpp
   parser/semantics.cpp
+  util.cpp
   # Header files.
   hclang.hpp
   config.hpp

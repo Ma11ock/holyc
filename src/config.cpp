@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fmt/core.h>
 #include "log.hpp"
+#include "util.hpp"
 
 namespace fs = std::filesystem;
 using namespace std::string_view_literals;
@@ -73,8 +74,42 @@ hclang::Config::Config(const argsType &args)
         }
     }
 
-
     if(mSourcePaths.empty()) {
         throw std::invalid_argument("no input files");
     }
+
+    // Set default output path.
+    if(mOutputPath.empty() && (mCompilationUnit || mEmitLLVM)) {
+        std::string outputPath;
+        for(auto inputPath : mSourcePaths) {
+            outputPath += inputPath.replace_extension().u8string();
+        }
+        mOutputPath = outputPath;
+    } else if(mOutputPath.empty()) {
+        mOutputPath = "a.out";
+    }
+}
+
+std::vector<char*> hclang::Config::makeClangArgv(const std::vector<fs::path> &sources) const {
+    std::vector<char*> result = { util::strdup("clang") };
+
+    if(!mOutputPath.empty()) {
+        result.push_back(util::strdup("-o"));
+        result.push_back(util::strdup(mOutputPath.c_str()));
+    }
+
+    if(mCompilationUnit) {
+        result.push_back(util::strdup("-c"));
+    }
+
+    if(log::isEnabled) {
+        result.push_back(util::strdup("-v"));
+    }
+
+    for(const auto &source : sources) {
+        result.push_back(util::strdup(source.c_str()));
+    }
+
+    result.push_back(nullptr);
+    return result;
 }

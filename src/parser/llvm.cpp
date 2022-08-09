@@ -20,6 +20,11 @@
 
 #include <string_view>
 
+extern "C" {
+#include <unistd.h>
+#include <sys/wait.h>
+}
+
 // Aliases.
 
 using O = hclang::Operator;
@@ -416,7 +421,7 @@ static inline llvm::Value *integerConstant(std::int64_t val, hclang::parserConte
  * @return LLVM i1 value. 1 if any bit in `expr` is 1, 0 otherwise.
  */
 static inline llvm::Value *u64ToI1(llvm::Value *expr, hclang::parserContext &pc) {
-    return pc.builder.CreateICmpNE(expr, integerConstant(UINT64_C(0), pc));
+    return pc.builder.CreateICmpNE(expr, integerConstant(UINT64_C(0), pc), "i64toi1");
 }
 
 /**
@@ -893,7 +898,7 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
         );
 
     mainFunc = llvm::Function::Create(mainFuncPrototype, llvm::GlobalValue::ExternalLinkage,
-                                      "hclang_main", module);
+                                      "main", module);
 
     BlockStack blockStack;
     blockStack.push("entry", context, builder, mainFunc);
@@ -915,58 +920,55 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
         realPath = "a.out";
     }
 
-    if(mConfig.shouldEmitLLVM()) {
-        module->print(llvm::outs(), nullptr);
-        return;
-    }
-
     if(mConfig.syntaxOnly()) {
         return;
     }
 
-    // Compile to object code.
-    auto targetTriple = llvm::sys::getDefaultTargetTriple();
-    llvm::InitializeAllTargetInfos();
-    llvm::InitializeAllTargets();
-    llvm::InitializeAllTargetMCs();
-    llvm::InitializeAllAsmParsers();
-    llvm::InitializeAllAsmPrinters();
-
-    std::string error;
-    auto targetReg = llvm::TargetRegistry::lookupTarget(targetTriple, error);
-
-    if(!targetReg) {
-        throw std::runtime_error(error);
+    // Emit LLVM to a tmp file.
+    std::string llpath;
+    if(mConfig.shouldEmitLLVM()) {
+        llpath = fs::path(mConfig.getOutputPath()).replace_extension(".ll");
+    } else {
+        llpath = util::mkTmp("", ".ll").u8string();
+    }
+    fmt::print("Writing LLVM bytecode to {}\n", llpath);
+    {
+        std::error_code ec;
+        llvm::raw_fd_ostream outStream(llpath, ec);
+        module->print(outStream, nullptr);
+        if(mConfig.shouldEmitLLVM()) {
+            return;
+        }
     }
 
-    auto cpu = "generic";
-    auto features = "";
-
-    llvm::TargetOptions opt;
-    auto rm = llvm::Optional<llvm::Reloc::Model>();
-    auto targetMachine = targetReg->createTargetMachine(targetTriple, cpu, features,
-                                                        opt, rm);
-
-
-    module->setDataLayout(targetMachine->createDataLayout());
-    module->setTargetTriple(targetTriple);
-
-    std::error_code ec;
-    llvm::raw_fd_ostream dest(realPath, ec, llvm::sys::fs::OF_None);
-
-    if(ec) {
-        throw std::runtime_error(fmt::format("Could not open output file: {}", ec.message()));
+    // Invoke clang.
+    if(auto pid = fork();
+       pid == 0) {
+        fmt::print("Invoking clang with:\n\"");
+        auto argv = mConfig.makeClangArgv({ hclang::fs::path(llpath) });
+        for(auto arg : argv) {
+            const char *printS = arg ? arg : "";
+            fmt::print("{} ", printS);
+        }
+        fmt::print("\"\n");
+        if(execvp("clang", argv.data())) {
+            // exec* only return on error
+            // TODO.
+        }
+    } else if(pid == -1) {
+        // TODO
+    } else {
+        int status = 0;
+        waitpid(pid, &status, 0);
+        if(WIFEXITED(status)) {
+            if(status != 0) {
+                fmt::print(stderr, "Clang exited with status {}\n", status);
+            }
+        } else {
+            // Terminated by signal.
+            fmt::print(stderr, "Clang was terminated by signal {}\n", status);
+        }
     }
-
-    llvm::legacy::PassManager pass;
-    auto fileType = llvm::CGFT_ObjectFile;
-
-    if(targetMachine->addPassesToEmitFile(pass, dest, nullptr, fileType)) {
-        throw std::runtime_error("TargetMachine cannot emit a file of this type.");
-    }
-
-    pass.run(*module);
-    dest.flush();
 }
 
 hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {
@@ -1121,19 +1123,19 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
     case hct::I8i:
     case hct::U8i:
         return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt8Ty(pc.context), true);
+                                        llvm::Type::getInt8Ty(pc.context), true, "i8cast");
     case hct::I16i:
     case hct::U16i:
         return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt16Ty(pc.context), true);
+                                        llvm::Type::getInt16Ty(pc.context), true, "i16cast");
     case hct::I32i:
     case hct::U32i:
         return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt32Ty(pc.context), true);
+                                        llvm::Type::getInt32Ty(pc.context), true, "i32cast");
     case hct::I64i:
     case hct::U64i:
         return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt64Ty(pc.context), true);
+                                        llvm::Type::getInt64Ty(pc.context), true, "i64cast");
         break;
     default:
         break;
@@ -1331,19 +1333,19 @@ hclang::LLV hclang::LLVMCast::toLLVM(parserContext &pc) const {
     switch(mType.type) {
     case hct::I8i:
     case hct::U8i:
-        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt8Ty(pc.context), false);
+        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt8Ty(pc.context), false, "casti8");
         break;
     case hct::I16i:
     case hct::U16i:
-        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt16Ty(pc.context), false);
+        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt16Ty(pc.context), false, "casti16");
         break;
     case hct::I32i:
     case hct::U32i:
-        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt32Ty(pc.context), false);
+        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt32Ty(pc.context), false, "casti32");
         break;
     case hct::I64i:
     case hct::U64i:
-        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt64Ty(pc.context), false);
+        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt64Ty(pc.context), false, "casti64");
         break;
     default:
         break;
@@ -1384,5 +1386,5 @@ hclang::LLV hclang::FunctionCall::toLLVM(parserContext &pc) const {
     if(!funcType || !callee) {
         throw std::runtime_error(fmt::format("Function {} is not defined in symbol table", funcId));
     }
-    return pc.builder.CreateCall(funcType, callee, args);
+    return pc.builder.CreateCall(funcType, callee, args, "retval");
 }

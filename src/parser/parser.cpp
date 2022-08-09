@@ -342,9 +342,10 @@ hclang::cmpdStmnt ParseTreeImpl::compoundStatementStart() {
         if(getTypeFrom(typeLex) || hclang::isSpecifier(type)) {
             pushTokenToFront();
             auto decl = declarationStatementStart();
+            bool isFunction = *(decl->getDeclType()) == hclang::Declaration::Type::Function;
+            expectSemiColon = !isFunction;
             result->add(decl);
             // TODO check if top level. If not, throw. If so, continue.
-            expectSemiColon = *(decl->getDeclType()) != hclang::Declaration::Type::Function;
             continue;
         }
 
@@ -626,7 +627,6 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
                                         mSymbolTable, mLookAhead));
         } else if(sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
             // Parse function call.
-            fmt::print("A functor!\n");
             ys.push(hclang::makeFuncCall(std::static_pointer_cast<hclang::FunctionDeclaration>(sym), expressionList()));
         } else {
             throw std::invalid_argument(fmt::format("Undefined identifier: {}", mLookAhead.getText()));

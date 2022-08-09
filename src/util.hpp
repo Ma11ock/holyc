@@ -5,6 +5,10 @@
 #include <cstdint>
 #include <string>
 #include <algorithm>
+#include <filesystem>
+#include <random>
+#include <array>
+#include <cstring>
 
 #ifdef __unix__
 #include <cerrno>
@@ -49,6 +53,40 @@ namespace util {
         }
         return std::equal(postfix.rbegin(), postfix.rend(), s.rbegin());
     }
+
+    std::filesystem::path mkTmp(std::string_view prefix, std::string_view suffix);
+
+    std::string randomAlNumString(std::size_t len);
+
+    /**
+     * Create a fully-seeded mt19937.
+     *
+     * @return A fully-seeded mt19937.
+     */
+    inline std::mt19937 seededMT()
+    {
+        std::random_device source;
+        std::array<std::random_device::result_type, (std::mt19937::state_size - 1) / sizeof(source()) + 1> randomData;
+        std::generate(std::begin(randomData), std::end(randomData), std::ref(source));
+        std::seed_seq seeds(std::begin(randomData), std::end(randomData));
+        return std::mt19937(seeds);
+    }
+
+    inline char *strdup(const char *str) {
+        if(!str) {
+            return nullptr;
+        }
+        char *result = new char[std::strlen(str) + 1];
+        std::strcpy(result, str);
+        return result;
+    }
+
+    /// Helper compile time constants to find out if a type exists.
+    template<typename T, typename = void>
+    constexpr bool isDefined = false;
+    /// Helper compile time constants to find out if a type exists.
+    template<typename T>
+    constexpr bool isDefined<T, decltype(typeid(T), void())> = true;
 }
 
 #define MAKE_FMT_STYLE_SPEC(what)                                       \

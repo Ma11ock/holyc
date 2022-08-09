@@ -1691,11 +1691,6 @@ namespace hclang {
          * @param pd Statement to add.
          */
         void add(cmpdStmnt pd);
-        /**
-         * Add function to program.
-         * @param pd Function to add.
-         */
-        void add(funcDefn pd);
         /// Destructor. Default.
         virtual ~Program() = default;
         /**

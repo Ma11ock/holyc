@@ -495,13 +495,6 @@ void hclang::Program::add(hclang::cmpdStmnt pd) {
     }
 }
 
-void hclang::Program::add(hclang::funcDefn pd) {
-    if(pd == nullptr) {
-        return;
-    }
-    mStatements.push_back(pd);
-}
-
 void hclang::Program::pprint() const {
     for(int i = 0; i < 10; i++) {
         fmt::print("+---------");

@@ -32,6 +32,7 @@ namespace hclang {
             return mCompilationUnit;
         }
 
+        std::vector<char*> makeClangArgv(const std::vector<std::filesystem::path> &sources = {}) const;
     protected:
         std::vector<std::filesystem::path> mSourcePaths;
         std::filesystem::path mOutputPath;
@@ -41,6 +42,7 @@ namespace hclang {
         bool mHelp;
         bool mCompilationUnit;
     };
+
 }
 
 #endif /* SLANG_CONFIG_HPP */

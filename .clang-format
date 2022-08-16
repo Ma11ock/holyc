@@ -2,8 +2,9 @@ BasedOnStyle: Google
 IndentWidth: 4
 ---
 Language: Cpp
+IndentWidth: 4
 DerivePointerAlignment: false
-PointerAlignment: Left
+PointerAlignment: Right
 ColumnLimit: 100
 AccessModifierOffset: 0
 AlignAfterOpenBracket: false
@@ -20,7 +21,7 @@ AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLambdasOnASingleLine: None
 AllowShortLoopsOnASingleLine: false
-AlwaysBreakAfterReturnType: Never
+AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: true
@@ -52,6 +53,9 @@ SpacesInConditionalStatement: false
 SpacesInContainerLiterals: true
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
+IndentCaseBlocks: false
+IndentCaseLabels: false
 TabWidth: 4
 UseCRLF: false
 UseTab: Never
+

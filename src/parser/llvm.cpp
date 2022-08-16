@@ -2,27 +2,28 @@
  * @file llvm.cpp                                                          *
  * @brief LLVM code generation from abstract syntax tree. Uses LLVM 14.1.  *
  ***************************************************************************/
-#include "parser.hpp"
-#include "ast.hpp"
-#include "symbols.hpp"
-#include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Verifier.h>
-#include <llvm/IR/Instructions.h>
+#include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/FileSystem.h>
-#include <llvm/Target/TargetMachine.h>
-#include <llvm/Target/TargetOptions.h>
-#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/TargetSelect.h>
-#include <llvm/MC/TargetRegistry.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
 
 #include <string_view>
 
+#include "ast.hpp"
+#include "parser.hpp"
+#include "symbols.hpp"
+
 extern "C" {
-#include <unistd.h>
 #include <sys/wait.h>
+#include <unistd.h>
 }
 
 // Aliases.
@@ -34,10 +35,10 @@ using hct = hclang::HCType;
  * Stack of LLVM blocks for managing branching.
  */
 class BlockStack {
-public:
+    public:
     /**
-     * Struct for blocks, and an optional "merge" block, which is pushed to the stack
-     * after a pop.
+     * Struct for blocks, and an optional "merge" block, which is pushed to the
+     * stack after a pop.
      */
     struct blockPair {
         /// Current block.
@@ -45,6 +46,7 @@ public:
         /// Merge block. Pushed to stack after a pop if not null.
         llvm::BasicBlock *merge = nullptr;
     };
+
     /**
      * Default constructor. Create block stack.
      */
@@ -60,8 +62,8 @@ public:
      * @return The most recent merge block, or NULL if there isn't one.
      */
     inline llvm::BasicBlock *peekMerge() const {
-        for(const auto &pair : mBlockStack) {
-            if(pair.merge) {
+        for (const auto &pair : mBlockStack) {
+            if (pair.merge) {
                 return pair.merge;
             }
         }
@@ -73,8 +75,8 @@ public:
      * @return The top of the block stack.
      */
     inline blockPair peek() const {
-        if(mBlockStack.empty())
-            return blockPair { nullptr, nullptr };
+        if (mBlockStack.empty())
+            return blockPair{nullptr, nullptr};
         return mBlockStack.front();
     }
 
@@ -89,19 +91,20 @@ public:
      */
     inline blockPair pop(llvm::IRBuilder<> &builder) {
         // Do not allow entry to popped and ignore if stack is empty.
-        if(mBlockStack.empty()) {
-            return blockPair { nullptr, nullptr };
+        if (mBlockStack.empty()) {
+            return blockPair{nullptr, nullptr};
         }
 
         auto result = mBlockStack.back();
         mBlockStack.pop_front();
-        if(result.merge) {
+        if (result.merge) {
             push(result.merge, builder, nullptr);
         } else {
             setInsertPoint(builder);
         }
         return result;
     }
+
     /**
      * Push block onto the stack, and set the insertion point.
      * @param pair The block pair to push onto the stack.
@@ -111,13 +114,14 @@ public:
      * @see blockPair
      */
     inline blockPair push(blockPair pair, llvm::IRBuilder<> &builder) {
-        if(!pair.block) {
-            return blockPair { nullptr, nullptr };
+        if (!pair.block) {
+            return blockPair{nullptr, nullptr};
         }
         mBlockStack.push_front(pair);
         builder.SetInsertPoint(pair.block);
         return pair;
     }
+
     /**
      * Construct a new block of name `name` and push it onto the stack.
      * @param name The name of the block to push.
@@ -130,11 +134,10 @@ public:
      * @see blockPair
      */
     inline blockPair push(std::string_view name, llvm::LLVMContext &context,
-                          llvm::IRBuilder<> &builder, llvm::Function *func,
-                          llvm::BasicBlock *merge = nullptr) {
-        return push(blockPair { llvm::BasicBlock::Create(context, name, func), merge },
-                    builder);
+        llvm::IRBuilder<> &builder, llvm::Function *func, llvm::BasicBlock *merge = nullptr) {
+        return push(blockPair{llvm::BasicBlock::Create(context, name, func), merge}, builder);
     }
+
     /**
      * Push block onto the stack, and set an insertion point.
      * @param block The block to push to the stack and set insertion point to.
@@ -144,9 +147,9 @@ public:
      * or NULL if `pair.block` was NULL.
      * @see blockPair
      */
-    inline blockPair push(llvm::BasicBlock *block, llvm::IRBuilder<> &builder,
-                          llvm::BasicBlock *merge = nullptr) {
-        return push(blockPair { block, merge }, builder);
+    inline blockPair push(
+        llvm::BasicBlock *block, llvm::IRBuilder<> &builder, llvm::BasicBlock *merge = nullptr) {
+        return push(blockPair{block, merge}, builder);
     }
 
     /**
@@ -155,12 +158,13 @@ public:
      * @param builder LLVM builder to set insert point of.
      */
     inline void setInsertPoint(llvm::IRBuilder<> &builder) const {
-        if(mBlockStack.empty()) {
+        if (mBlockStack.empty()) {
             return;
         }
         builder.SetInsertPoint(peek().block);
     }
-protected:
+
+    protected:
     /// Stack of blocks for the current function.
     std::list<blockPair> mBlockStack;
 };
@@ -182,14 +186,14 @@ struct llvmSymbol {
         return funcType && func;
     }
 
-    llvmSymbol() : variable(nullptr),funcType(nullptr),func(nullptr) {
+    llvmSymbol() : variable(nullptr), funcType(nullptr), func(nullptr) {
     }
 
-    llvmSymbol(llvm::Value * v) : variable(v) {
+    llvmSymbol(llvm::Value *v) : variable(v) {
     }
 
     llvmSymbol(llvm::FunctionType *funcType, llvm::Function *func)
-        : variable(nullptr),funcType(funcType),func(func) {
+        : variable(nullptr), funcType(funcType), func(func) {
     }
 
     llvmSymbol &operator=(llvm::Value *v) {
@@ -204,77 +208,81 @@ struct llvmSymbol {
     }
 };
 
-
 namespace hclang {
-    /**
-     * Parser context information used for LLVM code generation.
-     */
-    struct parserContext {
-        /// Symbol table with LLVM values.
-        SymbolTable<llvmSymbol> &symbolTable;
-        /// Stack used for managing branches.
-        BlockStack &blockStack;
-        /// LLVM context.
-        llvm::LLVMContext &context;
-        /// Builder context.
-        llvm::IRBuilder<> &builder;
-        /// Module for current object file.
-        llvm::Module *module;
-    };
+/**
+ * Parser context information used for LLVM code generation.
+ */
+struct parserContext {
+    /// Symbol table with LLVM values.
+    SymbolTable<llvmSymbol> &symbolTable;
+    /// Stack used for managing branches.
+    BlockStack &blockStack;
+    /// LLVM context.
+    llvm::LLVMContext &context;
+    /// Builder context.
+    llvm::IRBuilder<> &builder;
+    /// Module for current object file.
+    llvm::Module *module;
+};
 
-    /**
-     * Casts LLVM bytecode object into different type of bytecode object.
-     */
-    class LLVMCast : public hclang::GrammarRule {
+/**
+ * Casts LLVM bytecode object into different type of bytecode object.
+ */
+class LLVMCast : public hclang::GrammarRule {
     public:
-        /**
-         * Value constructor. Sets all members.
-         * @param type HCType that the LLVM object represents.
-         * @param expr LLVM bytecode object to cast.
-         */
-        LLVMCast(typeInfo type, LLV expr) : mExpr(expr),mType(type) {
-        }
+    /**
+     * Value constructor. Sets all members.
+     * @param type HCType that the LLVM object represents.
+     * @param expr LLVM bytecode object to cast.
+     */
+    LLVMCast(typeInfo type, LLV expr) : mExpr(expr), mType(type) {
+    }
 
-        /**
-         * Default destructor.
-         */
-        virtual ~LLVMCast() = default;
+    /**
+     * Default destructor.
+     */
+    virtual ~LLVMCast() = default;
 
-        /**
-         * Generate LLVM bytecode.
-         * @return LLVM object representing this production rule.
-         */
-        virtual LLV toLLVM(parserContext &pc) const;
-        /// Pretty print this grammar rule (does not print children).
-        virtual void pprint() const {
-        }
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::string_view getClassName() const {
-            return "LLVMCast";
-        }
-        /**
-         * Get class name.
-         * @return Class name.
-         */
-        virtual std::list<GR> getChildren() const {
-            return { };
-        }
+    /**
+     * Generate LLVM bytecode.
+     * @return LLVM object representing this production rule.
+     */
+    virtual LLV toLLVM(parserContext &pc) const;
 
-        /**
-         * Perform semantic parsing of `this` and children. Ensures rules of
-         * HolyC, like the type system, are followed.
-         */
-        virtual void parseSemantics(semanticContext &sc) { }
+    /// Pretty print this grammar rule (does not print children).
+    virtual void pprint() const {
+    }
+
+    /**
+     * Get class name.
+     * @return Class name.
+     */
+    virtual std::string_view getClassName() const {
+        return "LLVMCast";
+    }
+
+    /**
+     * Get class name.
+     * @return Class name.
+     */
+    virtual std::list<GR> getChildren() const {
+        return {};
+    }
+
+    /**
+     * Perform semantic parsing of `this` and children. Ensures rules of
+     * HolyC, like the type system, are followed.
+     */
+    virtual void parseSemantics(semanticContext &sc) {
+    }
+
     protected:
-        /// LLVM expression to create cast for.
-        LLV mExpr;
-        /// HolyC type of `mExpr`.
-        typeInfo mType;
-    };
-}
+    /// LLVM expression to create cast for.
+    LLV mExpr;
+    /// HolyC type of `mExpr`.
+    typeInfo mType;
+};
+}  // namespace hclang
 
 // Static functions.
 
@@ -285,7 +293,7 @@ namespace hclang {
  * @return LLVM type that is equivalent to `ti`.
  */
 static llvm::Type *llvmTypeFrom(const hclang::typeInfo &ti, hclang::parserContext &pc) {
-    switch(ti.type) {
+    switch (ti.type) {
     case hct::U64i:
     case hct::I64i:
         return llvm::Type::getInt64Ty(pc.context);
@@ -431,8 +439,9 @@ static inline llvm::Value *u64ToI1(llvm::Value *expr, hclang::parserContext &pc)
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM value pointing to stack-allocated space.
  */
-template<typename T>
-inline static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id, hclang::parserContext &pc) {
+template <typename T>
+inline static llvm::Value *generateEntryBlockAlloca(
+    const hclang::Identifier &id, hclang::parserContext &pc) {
     return nullptr;
 }
 
@@ -442,26 +451,20 @@ inline static llvm::Value *generateEntryBlockAlloca(const hclang::Identifier &id
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM value pointing to stack-allocated space.
  */
-template<>
-llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id,
-                                                   hclang::parserContext &pc) {
-    if(auto symbol = pc.symbolTable.find(id);
-       symbol && symbol.isVar()) {
+template <>
+llvm::Value *generateEntryBlockAlloca<std::int8_t>(
+    const hclang::Identifier &id, hclang::parserContext &pc) {
+    if (auto symbol = pc.symbolTable.find(id); symbol && symbol.isVar()) {
         return symbol.variable;
-    } else if(symbol && !symbol.isVar()) {
+    } else if (symbol && !symbol.isVar()) {
         throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
 
     auto nId = id.getId();
     llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
-    llvm::IRBuilder<> tmpBuilder(
-        &curFn->getEntryBlock(),
-        curFn->getEntryBlock().begin()
-        );
+    llvm::IRBuilder<> tmpBuilder(&curFn->getEntryBlock(), curFn->getEntryBlock().begin());
     llvm::StringRef name(nId.data(), nId.size());
-    auto alloca = tmpBuilder.CreateAlloca(
-        llvm::Type::getInt8Ty(pc.context), nullptr, name
-        );
+    auto alloca = tmpBuilder.CreateAlloca(llvm::Type::getInt8Ty(pc.context), nullptr, name);
     pc.symbolTable[id] = alloca;
     return alloca;
 }
@@ -472,30 +475,23 @@ llvm::Value *generateEntryBlockAlloca<std::int8_t>(const hclang::Identifier &id,
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM value pointing to stack-allocated space.
  */
-template<>
-llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id,
-                                                    hclang::parserContext &pc) {
-    if(auto symbol = pc.symbolTable.find(id);
-       symbol && symbol.isVar()) {
+template <>
+llvm::Value *generateEntryBlockAlloca<std::int16_t>(
+    const hclang::Identifier &id, hclang::parserContext &pc) {
+    if (auto symbol = pc.symbolTable.find(id); symbol && symbol.isVar()) {
         return symbol.variable;
-    } else if(symbol && !symbol.isVar()) {
+    } else if (symbol && !symbol.isVar()) {
         throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
     auto nId = id.getId();
 
     llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
-    llvm::IRBuilder<> tmpBuilder(
-        &curFn->getEntryBlock(),
-        curFn->getEntryBlock().begin()
-        );
+    llvm::IRBuilder<> tmpBuilder(&curFn->getEntryBlock(), curFn->getEntryBlock().begin());
     llvm::StringRef name(nId.data(), nId.size());
-    auto alloca = tmpBuilder.CreateAlloca(
-        llvm::Type::getInt16Ty(pc.context), nullptr, name
-        );
+    auto alloca = tmpBuilder.CreateAlloca(llvm::Type::getInt16Ty(pc.context), nullptr, name);
     pc.symbolTable[id] = alloca;
     return alloca;
 }
-
 
 /**
  * Allocate space on the stack for a local variable (4 bytes).
@@ -503,26 +499,20 @@ llvm::Value *generateEntryBlockAlloca<std::int16_t>(const hclang::Identifier &id
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM value pointing to stack-allocated space.
  */
-template<>
-llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id,
-                                                    hclang::parserContext &pc) {
-    if(auto symbol = pc.symbolTable.find(id);
-       symbol && symbol.isVar()) {
+template <>
+llvm::Value *generateEntryBlockAlloca<std::int32_t>(
+    const hclang::Identifier &id, hclang::parserContext &pc) {
+    if (auto symbol = pc.symbolTable.find(id); symbol && symbol.isVar()) {
         return symbol.variable;
-    } else if(symbol && !symbol.isVar()) {
+    } else if (symbol && !symbol.isVar()) {
         throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
     auto nId = id.getId();
 
     llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
-    llvm::IRBuilder<> tmpBuilder(
-        &curFn->getEntryBlock(),
-        curFn->getEntryBlock().begin()
-        );
+    llvm::IRBuilder<> tmpBuilder(&curFn->getEntryBlock(), curFn->getEntryBlock().begin());
     llvm::StringRef name(nId.data(), nId.size());
-    auto alloca = tmpBuilder.CreateAlloca(
-        llvm::Type::getInt32Ty(pc.context), nullptr, name
-        );
+    auto alloca = tmpBuilder.CreateAlloca(llvm::Type::getInt32Ty(pc.context), nullptr, name);
     pc.symbolTable[id] = alloca;
     return alloca;
 }
@@ -533,26 +523,20 @@ llvm::Value *generateEntryBlockAlloca<std::int32_t>(const hclang::Identifier &id
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM value pointing to stack-allocated space.
  */
-template<>
-llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id,
-                                                    hclang::parserContext &pc) {
-    if(auto symbol = pc.symbolTable.find(id);
-       symbol && symbol.isVar()) {
+template <>
+llvm::Value *generateEntryBlockAlloca<std::int64_t>(
+    const hclang::Identifier &id, hclang::parserContext &pc) {
+    if (auto symbol = pc.symbolTable.find(id); symbol && symbol.isVar()) {
         return symbol.variable;
-    } else if(symbol && !symbol.isVar()) {
+    } else if (symbol && !symbol.isVar()) {
         throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
     }
     auto nId = id.getId();
 
     llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
-    llvm::IRBuilder<> tmpBuilder(
-        &curFn->getEntryBlock(),
-        curFn->getEntryBlock().begin()
-        );
+    llvm::IRBuilder<> tmpBuilder(&curFn->getEntryBlock(), curFn->getEntryBlock().begin());
     llvm::StringRef name(nId.data(), nId.size());
-    auto alloca = tmpBuilder.CreateAlloca(
-        llvm::Type::getInt64Ty(pc.context), nullptr, name
-        );
+    auto alloca = tmpBuilder.CreateAlloca(llvm::Type::getInt64Ty(pc.context), nullptr, name);
     pc.symbolTable[id] = alloca;
     return alloca;
 }
@@ -564,9 +548,9 @@ llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM value pointing to stack-allocated space.
  */
-template<typename T>
-static inline llvm::Value *generateEntryBlockAlloca(std::string_view id,
-                                                    hclang::parserContext &pc) {
+template <typename T>
+static inline llvm::Value *generateEntryBlockAlloca(
+    std::string_view id, hclang::parserContext &pc) {
     return generateEntryBlockAlloca<T>(hclang::Identifier(id), pc.symbolTable);
 }
 
@@ -577,9 +561,8 @@ static inline llvm::Value *generateEntryBlockAlloca(std::string_view id,
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM LValue of variable `name`.
  */
-template<typename T>
-static inline llvm::Value *readLvalue(std::string_view name,
-                                      hclang::parserContext &pc) {
+template <typename T>
+static inline llvm::Value *readLvalue(std::string_view name, hclang::parserContext &pc) {
     return nullptr;
 }
 
@@ -589,18 +572,13 @@ static inline llvm::Value *readLvalue(std::string_view name,
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM LValue of variable `name`.
  */
-template<>
-llvm::Value *readLvalue<std::uint8_t>(std::string_view name,
-                                      hclang::parserContext &pc) {
+template <>
+llvm::Value *readLvalue<std::uint8_t>(std::string_view name, hclang::parserContext &pc) {
     llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
-    if(!ptr) {
+    if (!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
-    return pc.builder.CreateLoad(
-        llvm::Type::getInt8Ty(pc.context),
-        ptr,
-        name
-        );
+    return pc.builder.CreateLoad(llvm::Type::getInt8Ty(pc.context), ptr, name);
 }
 
 /**
@@ -609,18 +587,13 @@ llvm::Value *readLvalue<std::uint8_t>(std::string_view name,
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM LValue of variable `name`.
  */
-template<>
-llvm::Value *readLvalue<std::uint16_t>(std::string_view name,
-                                       hclang::parserContext &pc) {
+template <>
+llvm::Value *readLvalue<std::uint16_t>(std::string_view name, hclang::parserContext &pc) {
     llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
-    if(!ptr) {
+    if (!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
-    return pc.builder.CreateLoad(
-        llvm::Type::getInt16Ty(pc.context),
-        ptr,
-        name
-        );
+    return pc.builder.CreateLoad(llvm::Type::getInt16Ty(pc.context), ptr, name);
 }
 
 /**
@@ -629,18 +602,13 @@ llvm::Value *readLvalue<std::uint16_t>(std::string_view name,
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM LValue of variable `name`.
  */
-template<>
-llvm::Value *readLvalue<std::uint32_t>(std::string_view name,
-                                       hclang::parserContext &pc) {
+template <>
+llvm::Value *readLvalue<std::uint32_t>(std::string_view name, hclang::parserContext &pc) {
     llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
-    if(!ptr) {
+    if (!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
-    return pc.builder.CreateLoad(
-        llvm::Type::getInt32Ty(pc.context),
-        ptr,
-        name
-        );
+    return pc.builder.CreateLoad(llvm::Type::getInt32Ty(pc.context), ptr, name);
 }
 
 /**
@@ -649,18 +617,13 @@ llvm::Value *readLvalue<std::uint32_t>(std::string_view name,
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM LValue of variable `name`.
  */
-template<>
-llvm::Value *readLvalue<std::uint64_t>(std::string_view name,
-                                       hclang::parserContext &pc) {
+template <>
+llvm::Value *readLvalue<std::uint64_t>(std::string_view name, hclang::parserContext &pc) {
     llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
-    if(!ptr) {
+    if (!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
-    return pc.builder.CreateLoad(
-        llvm::Type::getInt64Ty(pc.context),
-        ptr,
-        name
-        );
+    return pc.builder.CreateLoad(llvm::Type::getInt64Ty(pc.context), ptr, name);
 }
 
 /**
@@ -669,9 +632,8 @@ llvm::Value *readLvalue<std::uint64_t>(std::string_view name,
  * @param pc Context object that contains the global LLVM objects.
  * @return LLVM LValue of `dec`.
  */
-template<typename T>
-static inline llvm::Value *readLvalue(hclang::decl dec,
-                                      hclang::parserContext &pc) {
+template <typename T>
+static inline llvm::Value *readLvalue(hclang::decl dec, hclang::parserContext &pc) {
     return readLvalue<T>(dec->getIdRef().getId(), pc);
 }
 
@@ -679,59 +641,52 @@ static inline llvm::Value *readLvalue(hclang::decl dec,
  * Make a store instruction.
  * @param expr Value to store.
  * @param variable Lvalue to store into.
- * @param load The current value of `variable`. Used if `op` is not Operator::Assignment
+ * @param load The current value of `variable`. Used if `op` is not
+ * Operator::Assignment
  * @see hclang::Operator
  * @param op Assignment operator.
  * @param pc Context object that contains the global LLVM objects.
  * @return Store instruction. NULL if any argument is invalid.
  */
 static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable, llvm::Value *load,
-                               hclang::Operator op, hclang::parserContext &pc) {
-    if(!expr || !variable) {
+    hclang::Operator op, hclang::parserContext &pc) {
+    if (!expr || !variable) {
         return nullptr;
     }
 
     // Create a store, return it.
-    if(op == O::Assignment) {
+    if (op == O::Assignment) {
         pc.builder.CreateStore(expr, variable, false);
         return expr;
     }
 
     // All other assigns depend on the current value of variable.
-    if(!load) {
+    if (!load) {
         return nullptr;
     }
 
     llvm::Value *result = nullptr;
-    switch(op) {
+    switch (op) {
     case O::AddAssignment:
-    case O::PrefixPlusPlus:
-    {
+    case O::PrefixPlusPlus: {
         result = pc.builder.CreateAdd(load, expr, "addeqtmp");
         pc.builder.CreateStore(result, variable, false);
-    }
-    break;
+    } break;
     case O::SubtractAssignment:
-    case O::PrefixMinusMinus:
-    {
+    case O::PrefixMinusMinus: {
         result = pc.builder.CreateSub(load, expr, "subeqtmp");
         pc.builder.CreateStore(result, variable, false);
-    }
-    break;
-    case O::PostfixPlusPlus:
-    {
+    } break;
+    case O::PostfixPlusPlus: {
         result = pc.builder.CreateAdd(load, expr, "addeqtmp");
         pc.builder.CreateStore(result, variable, false);
         result = load;
-    }
-    break;
-    case O::PostfixMinusMinus:
-    {
+    } break;
+    case O::PostfixMinusMinus: {
         result = pc.builder.CreateSub(load, expr, "addeqtmp");
         pc.builder.CreateStore(result, variable, false);
         result = load;
-    }
-    break;
+    } break;
     default:
         break;
     }
@@ -749,23 +704,23 @@ static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable, llvm::V
  * @param nowrap True if wrapping should be disabled, false if not.
  * @param signedOp True if the operation is signed, false if unsigned.
  * @param exact True if operation is "exact" (no remainder).
- * @return LLVM instruction generated from the operation. NULL if a parameter is invalid.
+ * @return LLVM instruction generated from the operation. NULL if a parameter is
+ * invalid.
  */
-static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
-                                    hclang::Operator op, hclang::parserContext &pc, bool nowrap = false,
-                                    bool signedOp = false, bool exact = false) {
-    if(!lhs || !rhs) {
+static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs, hclang::Operator op,
+    hclang::parserContext &pc, bool nowrap = false, bool signedOp = false, bool exact = false) {
+    if (!lhs || !rhs) {
         return nullptr;
     }
 
     bool hasNUW = nowrap && !signedOp;
     bool hasNSW = nowrap && signedOp;
-    switch(op) {
+    switch (op) {
     case O::Multiply:
         return pc.builder.CreateMul(lhs, rhs, "multmp", hasNUW, hasNSW);
         break;
     case O::Divide:
-        if(signedOp) {
+        if (signedOp) {
             return pc.builder.CreateSDiv(lhs, rhs, "sdivtmp", exact);
         }
         return pc.builder.CreateUDiv(lhs, rhs, "udivtmp", exact);
@@ -777,7 +732,7 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
         return pc.builder.CreateSub(lhs, rhs, "subtmp", hasNUW, hasNSW);
         break;
     case O::Modulo:
-        if(signedOp) {
+        if (signedOp) {
             return pc.builder.CreateSRem(lhs, rhs, "smodtmp");
         }
         return pc.builder.CreateURem(lhs, rhs, "umodtmp");
@@ -786,7 +741,7 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
         return pc.builder.CreateShl(lhs, rhs, "shltmp", hasNUW, hasNSW);
         break;
     case O::Rightshift:
-        if(signedOp) {
+        if (signedOp) {
             return pc.builder.CreateAShr(lhs, rhs, "ashrtmp", exact);
         }
         return pc.builder.CreateLShr(lhs, rhs, "lshrtmp", exact);
@@ -810,25 +765,25 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
         return pc.builder.CreateICmpNE(lhs, rhs, "neqtmp");
         break;
     case O::GreaterThanEqual:
-        if(signedOp) {
+        if (signedOp) {
             return pc.builder.CreateICmpSGE(lhs, rhs, "gtetmp");
         }
         return pc.builder.CreateICmpUGE(lhs, rhs, "gtetmp");
         break;
     case O::LessThanEqual:
-        if(signedOp) {
+        if (signedOp) {
             return pc.builder.CreateICmpSLE(lhs, rhs, "ltetmp");
         }
         return pc.builder.CreateICmpSLE(lhs, rhs, "ltetmp");
         break;
     case O::GreaterThan:
-        if(signedOp) {
+        if (signedOp) {
             return pc.builder.CreateICmpSGT(lhs, rhs, "gttmp");
         }
         return pc.builder.CreateICmpUGT(lhs, rhs, "gttmp");
         break;
     case O::LessThan:
-        if(signedOp) {
+        if (signedOp) {
             return pc.builder.CreateICmpSLT(lhs, rhs, "lttmp");
         }
         return pc.builder.CreateICmpSLT(lhs, rhs, "lttmp");
@@ -846,14 +801,16 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs,
  * @param op Operation to perform. Should be a binary operator.
  * @see hclang::Operator
  * @param pc Context object that contains the global LLVM objects.
- * @return LLVM instruction generated from the operation. NULL if a parameter is invalid.
+ * @return LLVM instruction generated from the operation. NULL if a parameter is
+ * invalid.
  */
-static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op, hclang::parserContext &pc) {
-    if(!expr) {
+static llvm::Value *unaryOperation(
+    llvm::Value *expr, hclang::Operator op, hclang::parserContext &pc) {
+    if (!expr) {
         return nullptr;
     }
 
-    switch(op) {
+    switch (op) {
     case O::Negative:
         return pc.builder.CreateNeg(expr, "negatetmp");
         break;
@@ -876,7 +833,7 @@ static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op, hclan
  */
 static inline llvm::Value *noOp(hclang::parserContext &pc) {
     return binaryOperation(integerConstant(UINT32_C(0), pc), integerConstant(UINT32_C(0), pc),
-                           hclang::Operator::Add, pc);
+        hclang::Operator::Add, pc);
 }
 
 // ParseTree implementation.
@@ -893,19 +850,18 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 
     module = new llvm::Module("squish", context);
 
-    llvm::FunctionType *mainFuncPrototype = llvm::FunctionType::get(
-        llvm::Type::getInt32Ty(context), false
-        );
+    llvm::FunctionType *mainFuncPrototype =
+        llvm::FunctionType::get(llvm::Type::getInt32Ty(context), false);
 
-    mainFunc = llvm::Function::Create(mainFuncPrototype, llvm::GlobalValue::ExternalLinkage,
-                                      "main", module);
+    mainFunc = llvm::Function::Create(
+        mainFuncPrototype, llvm::GlobalValue::ExternalLinkage, "main", module);
 
     BlockStack blockStack;
     blockStack.push("entry", context, builder, mainFunc);
     // AST->LLVM.
     SymbolTable<llvmSymbol> symbolTable;
     symbolTable.pushTable();
-    parserContext pc { symbolTable, blockStack, context, builder, module };
+    parserContext pc{symbolTable, blockStack, context, builder, module};
     // Create block stack and entry block for main.
     mProgram.toLLVM(pc);
 
@@ -916,17 +872,17 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     llvm::verifyModule(*module);
 
     std::string realPath = path.u8string();
-    if(realPath.empty()) {
+    if (realPath.empty()) {
         realPath = "a.out";
     }
 
-    if(mConfig.syntaxOnly()) {
+    if (mConfig.syntaxOnly()) {
         return;
     }
 
     // Emit LLVM to a tmp file.
     std::string llpath;
-    if(mConfig.shouldEmitLLVM()) {
+    if (mConfig.shouldEmitLLVM()) {
         llpath = fs::path(mConfig.getOutputPath()).replace_extension(".ll");
     } else {
         llpath = util::mkTmp("", ".ll").u8string();
@@ -936,32 +892,31 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
         std::error_code ec;
         llvm::raw_fd_ostream outStream(llpath, ec);
         module->print(outStream, nullptr);
-        if(mConfig.shouldEmitLLVM()) {
+        if (mConfig.shouldEmitLLVM()) {
             return;
         }
     }
 
     // Invoke clang.
-    if(auto pid = fork();
-       pid == 0) {
+    if (auto pid = fork(); pid == 0) {
         fmt::print("Invoking clang with:\n\"");
-        auto argv = mConfig.makeClangArgv({ hclang::fs::path(llpath) });
-        for(auto arg : argv) {
+        auto argv = mConfig.makeClangArgv({hclang::fs::path(llpath)});
+        for (auto arg : argv) {
             const char *printS = arg ? arg : "";
             fmt::print("{} ", printS);
         }
         fmt::print("\"\n");
-        if(execvp("clang", argv.data())) {
+        if (execvp("clang", argv.data())) {
             // exec* only return on error
             // TODO.
         }
-    } else if(pid == -1) {
+    } else if (pid == -1) {
         // TODO
     } else {
         int status = 0;
         waitpid(pid, &status, 0);
-        if(WIFEXITED(status)) {
-            if(status != 0) {
+        if (WIFEXITED(status)) {
+            if (status != 0) {
                 fmt::print(stderr, "Clang exited with status {}\n", status);
             }
         } else {
@@ -972,7 +927,7 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 }
 
 hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {
-    switch(mType.type) {
+    switch (mType.type) {
     case hct::I8i:
         return integerConstant(static_cast<std::int8_t>(mValue), pc);
         break;
@@ -1003,9 +958,21 @@ hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {
     return nullptr;
 }
 
+hclang::LLV hclang::FunctionArgument::toLLVM(parserContext &pc) const {
+    // Function arguments are handled in function generation.
+    // If the symbol is already defined, perform a read (just return the LLVM::Value*).
+
+    // TODO if writing to the symbol, we will have to alloca a local variable.
+    if(auto sym = pc.symbolTable.find(mId)) {
+        return sym.variable;
+    }
+
+    return nullptr;
+}
+
 hclang::LLV hclang::VariableDeclaration::toLLVM(parserContext &pc) const {
     using hct = hclang::HCType;
-    switch(mType.type) {
+    switch (mType.type) {
     case hct::I8i:
     case hct::U8i:
         return generateEntryBlockAlloca<std::int8_t>(mId, pc);
@@ -1042,9 +1009,9 @@ hclang::LLV hclang::VariableInitialization::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::Program::toLLVM(parserContext &pc) const {
-    for(const auto &pd : mStatements) {
+    for (const auto &pd : mStatements) {
         auto realPd = getPD(pd);
-        if(realPd != nullptr) {
+        if (realPd != nullptr) {
             realPd->toLLVM(pc);
         }
     }
@@ -1055,7 +1022,7 @@ hclang::LLV hclang::BinaryOperator::toLLVM(parserContext &pc) const {
     auto result = binaryOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp, pc);
     // HACK: for LLVM
     // If comparison, insert a cast.
-    if(isComparison(mOp)) {
+    if (isComparison(mOp)) {
         result = hclang::LLVMCast(mLhs->getType(), result).toLLVM(pc);
     }
 
@@ -1072,7 +1039,7 @@ hclang::LLV hclang::UnaryAssignment::toLLVM(parserContext &pc) const {
     auto load = LToRValue(mExpr).toLLVM(pc);
 
     auto expr = mExpr->toLLVM(pc);
-    switch(type.type) {
+    switch (type.type) {
     case hct::U8i:
     case hct::I8i:
         return assignment(integerConstant(UINT8_C(1), pc), expr, load, mOp, pc);
@@ -1099,7 +1066,7 @@ hclang::LLV hclang::UnaryAssignment::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::DeclarationStatement::toLLVM(parserContext &pc) const {
-    for(const auto &dec : mDecls) {
+    for (const auto &dec : mDecls) {
         dec->toLLVM(pc);
     }
     return nullptr;
@@ -1107,35 +1074,34 @@ hclang::LLV hclang::DeclarationStatement::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
     // TODO check expression's type.
-    if(!mType.isIntrinsic() || mType.isVoid()) {
-        throw std::invalid_argument(fmt::format("Cast: Type to cast is of type {}, but it needs to be an intrinsic",
-                                                mType));
+    if (!mType.isIntrinsic() || mType.isVoid()) {
+        throw std::invalid_argument(fmt::format(
+            "Cast: Type to cast is of type {}, but it needs to be an intrinsic", mType));
     }
-    if(auto fromType = mExpr->getType();
-       !fromType.isIntrinsic() || fromType.isVoid()) {
-        throw std::invalid_argument(fmt::format("Cast: Type to cast is of type {}, but it needs to be an intrinsic",
-                                                fromType));
+    if (auto fromType = mExpr->getType(); !fromType.isIntrinsic() || fromType.isVoid()) {
+        throw std::invalid_argument(fmt::format(
+            "Cast: Type to cast is of type {}, but it needs to be an intrinsic", fromType));
     }
-    if(!mExpr) {
+    if (!mExpr) {
         throw std::invalid_argument("Cast: Child is null");
     }
-    switch(mType.type) {
+    switch (mType.type) {
     case hct::I8i:
     case hct::U8i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt8Ty(pc.context), true, "i8cast");
+        return pc.builder.CreateIntCast(
+            mExpr->toLLVM(pc), llvm::Type::getInt8Ty(pc.context), true, "i8cast");
     case hct::I16i:
     case hct::U16i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt16Ty(pc.context), true, "i16cast");
+        return pc.builder.CreateIntCast(
+            mExpr->toLLVM(pc), llvm::Type::getInt16Ty(pc.context), true, "i16cast");
     case hct::I32i:
     case hct::U32i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt32Ty(pc.context), true, "i32cast");
+        return pc.builder.CreateIntCast(
+            mExpr->toLLVM(pc), llvm::Type::getInt32Ty(pc.context), true, "i32cast");
     case hct::I64i:
     case hct::U64i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc),
-                                        llvm::Type::getInt64Ty(pc.context), true, "i64cast");
+        return pc.builder.CreateIntCast(
+            mExpr->toLLVM(pc), llvm::Type::getInt64Ty(pc.context), true, "i64cast");
         break;
     default:
         break;
@@ -1149,8 +1115,13 @@ hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
     // TODO struct, enum, union, etc.
+    // You cannot "load" function arguments, so read from it directly.
+    if(mDeclRef->getDeclRef()->getDeclType() == Declaration::Type::Argument) {
+        return mDeclRef->getDeclRef()->toLLVM(pc);
+    }
+    // For regular declarations.
     auto underlyingDecl = mDeclRef->getDeclRef();
-    switch(mDeclRef->getType().type) {
+    switch (mDeclRef->getType().type) {
     case hct::U8i:
     case hct::I8i:
         return readLvalue<std::uint8_t>(underlyingDecl, pc);
@@ -1176,7 +1147,6 @@ hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
 hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     // Create the blocks that will house the if-else code.
 
-
     // Merges have to be handled manually.
     llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
     auto condTrue = llvm::BasicBlock::Create(pc.context, "cond_true", curFn);
@@ -1191,7 +1161,7 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
     pc.builder.CreateBr(merge);
     pc.blockStack.pop(pc.builder);
 
-    for(auto &elif : mElseIfs) {
+    for (auto &elif : mElseIfs) {
         auto cond = elif->getConditional();
         auto body = elif->getBody();
 
@@ -1212,7 +1182,7 @@ hclang::LLV hclang::If::toLLVM(parserContext &pc) const {
 
     // Else
     pc.blockStack.push(condElse, pc.builder);
-    if(mElseBody) {
+    if (mElseBody) {
         mElseBody->toLLVM(pc);
     }
     pc.builder.CreateBr(merge);
@@ -1244,7 +1214,7 @@ hclang::LLV hclang::For::toLLVM(parserContext &pc) const {
     auto forLoop = llvm::BasicBlock::Create(pc.context, "for_loop", curFn);
     auto merge = llvm::BasicBlock::Create(pc.context, "for_cont", curFn);
 
-    for(auto &startExp : mStartExps) {
+    for (auto &startExp : mStartExps) {
         startExp->toLLVM(pc);
     }
 
@@ -1253,7 +1223,7 @@ hclang::LLV hclang::For::toLLVM(parserContext &pc) const {
     pc.blockStack.push(forLoop, pc.builder);
     mBody->toLLVM(pc);
 
-    for(auto &endExp : mEndExps) {
+    for (auto &endExp : mEndExps) {
         endExp->toLLVM(pc);
     }
     pc.builder.CreateCondBr(u64ToI1(mConditional->toLLVM(pc), pc), forLoop, merge);
@@ -1277,22 +1247,22 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
     // Create argument list.
     std::vector<llvm::Type *> args(mArgs.size(), nullptr);
     auto mArgsIter = mArgs.begin();
-    for(auto &arg : args) {
+    for (auto &arg : args) {
         arg = llvmTypeFrom((*(mArgsIter++))->getType(), pc);
     }
 
     // Create function.
     auto prototype = llvm::FunctionType::get(llvmTypeFrom(getType(), pc), args, false);
-    auto func = llvm::Function::Create(prototype, llvm::GlobalValue::ExternalLinkage,
-                                       llvm::Twine(getIdRef().getId()), pc.module);
+    auto func = llvm::Function::Create(
+        prototype, llvm::GlobalValue::ExternalLinkage, llvm::Twine(getIdRef().getId()), pc.module);
     // TODO update symbol table with the function signature.
 
-    if(mDefinition) {
+    if (mDefinition) {
         // Supply argument names and update the symbol table.
         pc.symbolTable[getIdRef()] = llvmSymbol(prototype, func);
         SymTableCtx ctx(pc.symbolTable);
         mArgsIter = mArgs.begin();
-        for(auto &arg : func->args()) {
+        for (auto &arg : func->args()) {
             auto name = (*(mArgsIter++))->getIdRef().getId();
             arg.setName(name);
             pc.symbolTable[name] = &arg;
@@ -1300,7 +1270,7 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
         // Set up new block stack.
         BlockStack bs;
         bs.push("entry", pc.context, pc.builder, func);
-        parserContext tmpPc { pc.symbolTable, bs, pc.context, pc.builder, pc.module};
+        parserContext tmpPc{pc.symbolTable, bs, pc.context, pc.builder, pc.module};
         // Codegen the definition.
         mDefinition->toLLVM(tmpPc);
         // Restore "main"/global state.
@@ -1311,14 +1281,14 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::CompoundStatement::toLLVM(parserContext &pc) const {
-    for(const auto &statement : mStatementList) {
+    for (const auto &statement : mStatementList) {
         statement->toLLVM(pc);
     }
     return nullptr;
 }
 
 hclang::LLV hclang::Return::toLLVM(parserContext &pc) const {
-    if(mExp) {
+    if (mExp) {
         return pc.builder.CreateRet(mExp->toLLVM(pc));
     }
 
@@ -1327,25 +1297,28 @@ hclang::LLV hclang::Return::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::LLVMCast::toLLVM(parserContext &pc) const {
     // TODO check expression's type.
-    if(!mExpr) {
+    if (!mExpr) {
         throw std::invalid_argument("Cast: Child is null");
     }
-    switch(mType.type) {
+    switch (mType.type) {
     case hct::I8i:
     case hct::U8i:
         return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt8Ty(pc.context), false, "casti8");
         break;
     case hct::I16i:
     case hct::U16i:
-        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt16Ty(pc.context), false, "casti16");
+        return pc.builder.CreateIntCast(
+            mExpr, llvm::Type::getInt16Ty(pc.context), false, "casti16");
         break;
     case hct::I32i:
     case hct::U32i:
-        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt32Ty(pc.context), false, "casti32");
+        return pc.builder.CreateIntCast(
+            mExpr, llvm::Type::getInt32Ty(pc.context), false, "casti32");
         break;
     case hct::I64i:
     case hct::U64i:
-        return pc.builder.CreateIntCast(mExpr, llvm::Type::getInt64Ty(pc.context), false, "casti64");
+        return pc.builder.CreateIntCast(
+            mExpr, llvm::Type::getInt64Ty(pc.context), false, "casti64");
         break;
     default:
         break;
@@ -1354,7 +1327,7 @@ hclang::LLV hclang::LLVMCast::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::BinaryAssignment::toLLVM(parserContext &pc) const {
-    if(!mLhs || !mRhs) {
+    if (!mLhs || !mRhs) {
         return nullptr;
     }
 
@@ -1370,20 +1343,20 @@ hclang::LLV hclang::Label::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::FunctionCall::toLLVM(parserContext &pc) const {
-    std::vector<llvm::Value*> args(mArgExps.size());
+    std::vector<llvm::Value *> args(mArgExps.size());
     std::size_t i = 0;
-    for(auto &argExp : mArgExps) {
-        if(argExp) {
+    for (auto &argExp : mArgExps) {
+        if (argExp) {
             args[i] = argExp->toLLVM(pc);
         } else {
-            args[i] = nullptr; // TODO default args.
+            args[i] = nullptr;  // TODO default args.
         }
         i++;
     }
     auto funcId = mFunc->getIdRef();
     auto [_, funcType, callee] = pc.symbolTable.find(funcId);
     // TODO callee can be NULL if its external.
-    if(!funcType || !callee) {
+    if (!funcType || !callee) {
         throw std::runtime_error(fmt::format("Function {} is not defined in symbol table", funcId));
     }
     return pc.builder.CreateCall(funcType, callee, args, "retval");

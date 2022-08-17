@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "ast.hpp"
+#include "fmt/core.h"
 #include "lexer/lexer.hpp"
 #include "parser.hpp"
 #include "symbols.hpp"
@@ -916,6 +917,11 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
         std::error_code ec;
         llvm::raw_fd_ostream outStream(llpath, ec);
         module->print(outStream, nullptr);
+        if (ec) {
+            fmt::print(stderr, "Could not write to {}: (error code {}:{})", llpath, ec.value(),
+                ec.message());
+            return;
+        }
         if (mConfig.shouldEmitLLVM()) {
             return;
         }
@@ -948,6 +954,9 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
             fmt::print(stderr, "Clang was terminated by signal {}\n", status);
         }
     }
+
+    // Remove temporary file.
+    unlink(llpath.c_str());
 }
 
 hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {

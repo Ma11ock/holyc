@@ -15,8 +15,10 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 
+#include <stdexcept>
 #include <string_view>
 
+#include "../log.hpp"
 #include "ast.hpp"
 #include "fmt/core.h"
 #include "lexer/lexer.hpp"
@@ -912,14 +914,14 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     } else {
         llpath = util::mkTmp("", ".ll").u8string();
     }
-    fmt::print("Writing LLVM bytecode to {}\n", llpath);
+    ::log("Writing LLVM bytecode to {}\n", llpath);
     {
         std::error_code ec;
         llvm::raw_fd_ostream outStream(llpath, ec);
         module->print(outStream, nullptr);
         if (ec) {
-            fmt::print(stderr, "Could not write to {}: (error code {}:{})", llpath, ec.value(),
-                ec.message());
+            throw std::runtime_error(fmt::format(
+                "Could not write to {}: (error code {}:{})", llpath, ec.value(), ec.message()));
             return;
         }
         if (mConfig.shouldEmitLLVM()) {
@@ -929,13 +931,13 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
 
     // Invoke clang.
     if (auto pid = fork(); pid == 0) {
-        fmt::print("Invoking clang with:\n\"");
+        ::log("Invoking clang with:\n\"");
         auto argv = mConfig.makeClangArgv({hclang::fs::path(llpath)});
         for (auto arg : argv) {
             const char *printS = arg ? arg : "";
-            fmt::print("{} ", printS);
+            ::log("{} ", printS);
         }
-        fmt::print("\"\n");
+        ::log("\"\n");
         if (execvp("clang", argv.data())) {
             // exec* only return on error
             // TODO.

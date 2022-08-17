@@ -338,17 +338,6 @@ std::string_view hclang::IntegerConstant::getClassName() const {
 std::list<hclang::GR> hclang::IntegerConstant::getChildren() const {
   return {};
 }
-
-// FunctionArgument
-
-std::string_view hclang::FunctionArgument::getClassName() const {
-  return "FunctionArgument";
-}
-
-hclang::Declaration::Type hclang::FunctionArgument::getDeclType() const {
-  return Type::Argument;
-}
-
 // Variable declaration
 
 void hclang::VariableDeclaration::pprint() const {

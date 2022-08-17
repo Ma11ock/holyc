@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "ast.hpp"
+#include "lexer/lexer.hpp"
 #include "parser.hpp"
 #include "symbols.hpp"
 
@@ -430,6 +431,29 @@ static inline llvm::Value *integerConstant(std::int64_t val, hclang::parserConte
  */
 static inline llvm::Value *u64ToI1(llvm::Value *expr, hclang::parserContext &pc) {
     return pc.builder.CreateICmpNE(expr, integerConstant(UINT64_C(0), pc), "i64toi1");
+}
+
+/**
+ * Allocate space on the stack for a local variable (1 byte).
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
+inline llvm::Value *generateEntryBlockAlloca(
+    llvm::Type *type, const hclang::Identifier &id, hclang::parserContext &pc) {
+    if (auto symbol = pc.symbolTable.find(id); symbol && symbol.isVar()) {
+        return symbol.variable;
+    } else if (symbol && !symbol.isVar()) {
+        throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
+    }
+
+    auto nId = id.getId();
+    llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tmpBuilder(&curFn->getEntryBlock(), curFn->getEntryBlock().begin());
+    llvm::StringRef name(nId.data(), nId.size());
+    auto alloca = tmpBuilder.CreateAlloca(type, nullptr, name);
+    pc.symbolTable[id] = alloca;
+    return alloca;
 }
 
 /**
@@ -958,18 +982,6 @@ hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {
     return nullptr;
 }
 
-hclang::LLV hclang::FunctionArgument::toLLVM(parserContext &pc) const {
-    // Function arguments are handled in function generation.
-    // If the symbol is already defined, perform a read (just return the LLVM::Value*).
-
-    // TODO if writing to the symbol, we will have to alloca a local variable.
-    if(auto sym = pc.symbolTable.find(mId)) {
-        return sym.variable;
-    }
-
-    return nullptr;
-}
-
 hclang::LLV hclang::VariableDeclaration::toLLVM(parserContext &pc) const {
     using hct = hclang::HCType;
     switch (mType.type) {
@@ -1115,11 +1127,6 @@ hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
 
 hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
     // TODO struct, enum, union, etc.
-    // You cannot "load" function arguments, so read from it directly.
-    if(mDeclRef->getDeclRef()->getDeclType() == Declaration::Type::Argument) {
-        return mDeclRef->getDeclRef()->toLLVM(pc);
-    }
-    // For regular declarations.
     auto underlyingDecl = mDeclRef->getDeclRef();
     switch (mDeclRef->getType().type) {
     case hct::U8i:
@@ -1262,14 +1269,17 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
         pc.symbolTable[getIdRef()] = llvmSymbol(prototype, func);
         SymTableCtx ctx(pc.symbolTable);
         mArgsIter = mArgs.begin();
-        for (auto &arg : func->args()) {
-            auto name = (*(mArgsIter++))->getIdRef().getId();
-            arg.setName(name);
-            pc.symbolTable[name] = &arg;
-        }
         // Set up new block stack.
         BlockStack bs;
         bs.push("entry", pc.context, pc.builder, func);
+        for (auto &arg : func->args()) {
+            auto name = (*(mArgsIter++))->getIdRef();
+            arg.setName(name.getId());
+            // Make a tmp variable for loading and storing.
+            auto newVar = generateEntryBlockAlloca(arg.getType(), name, pc);
+            pc.symbolTable[name] = newVar;
+            assignment(&arg, newVar, nullptr, hclang::Operator::Assignment, pc);
+        }
         parserContext tmpPc{pc.symbolTable, bs, pc.context, pc.builder, pc.module};
         // Codegen the definition.
         mDefinition->toLLVM(tmpPc);

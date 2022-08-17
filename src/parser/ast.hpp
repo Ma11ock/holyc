@@ -217,7 +217,7 @@ enum class HCType {
  */
 struct typeInfo {
     /// Identifier/typename. Only used if `type` is class, enum, or union.
-    Identifier id = Identifier("");
+    Identifier id = Identifier();
     /// Type that is pointed to. Only used if `type` is pointer.
     std::shared_ptr<typeInfo> pointer = nullptr;
     /// HolyC type category.
@@ -1210,7 +1210,6 @@ class Declaration : public Statement {
 
     enum class Type {
         Variable,
-        Argument,
         Function,
     };
 
@@ -1277,42 +1276,6 @@ using varDecl = std::shared_ptr<VariableDeclaration>;
 template <typename... Args>
 inline varDecl makeVarDecl(Args &&...args) {
     return std::make_shared<VariableDeclaration>(std::forward<Args>(args)...);
-}
-
-/**
- * Declaration for a function argument.
- */
-class FunctionArgument : public VariableDeclaration {
-    public:
-    FunctionArgument(const Identifier &id, typeInfo type,
-        StorageClass sclass = StorageClass::Default, std::optional<Lexeme> l = std::nullopt)
-        : VariableDeclaration(id, type, sclass, l) {
-    }
-
-    virtual ~FunctionArgument() = default;
-    /**
-     * Get class name.
-     * @return Class name.
-     */
-    virtual std::string_view getClassName() const;
-    /**
-     * Generate LLVM bytecode.
-     * @return LLVM object representing this production rule.
-     */
-    virtual LLV toLLVM(parserContext &pc) const;
-
-    virtual Type getDeclType() const;
-};
-
-/**
- * Alias for shared pointer to FunctionArgument.
- * @see FunctionArgument.
- */
-using argDecl = std::shared_ptr<FunctionArgument>;
-
-template <typename... Args>
-inline argDecl makeArgDecl(Args &&...args) {
-    return std::make_shared<FunctionArgument>(std::forward<Args>(args)...);
 }
 
 class FunctionDefinition : public Statement {

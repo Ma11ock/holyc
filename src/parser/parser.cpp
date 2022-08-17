@@ -561,7 +561,7 @@ std::list<hclang::varDecl> ParseTreeImpl::funcDeclList() {
             if (info || (info = getTypeFrom(mLookAhead))) {
                 switch (getNextLookahead().getTokenType()) {
                 case TT::Identifier: {
-                    auto inVar = hclang::makeArgDecl(
+                    auto inVar = hclang::makeVarDecl(
                         mLookAhead, *info, hclang::StorageClass::Default, varStartLexeme);
                     result.push_back(inVar);
                     mSymbolTable.add(inVar->getIdRef(), inVar);
@@ -651,9 +651,7 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
         break;
     case TT::Identifier:
         if (auto sym = mSymbolTable.find(mLookAhead.getText());
-            sym &&
-            sym->getDeclType() == hclang::Declaration::Type::Variable ||
-            sym->getDeclType() == hclang::Declaration::Type::Argument) {
+            sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {
             ys.push(hclang::makeDeclRef(hclang::Identifier(mLookAhead),
                 hclang::DeclarationReference::Type::LValue, mSymbolTable, mLookAhead));
         } else if (sym && sym->getDeclType() == hclang::Declaration::Type::Function) {

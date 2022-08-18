@@ -277,6 +277,10 @@ struct typeInfo {
         return false;
     }
 
+    inline typeInfo &operator*() {
+        return *pointer;
+    }
+
     inline bool isInteger() const {
         switch (type) {
         case HCType::U0i:

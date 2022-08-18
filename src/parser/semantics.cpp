@@ -223,7 +223,11 @@ void hclang::UnaryOperator::parseSemantics(semanticContext &sc) {
         throw std::invalid_argument("Not an intrinsic");
     }
 
-    mType = childType;
+    if (mOp == Operator::AddressOf) {
+        mType = typeInfo{""sv, std::make_shared<typeInfo>(childType), HCType::Pointer};
+    } else {
+        mType = childType;
+    }
 }
 
 void hclang::IntegerConstant::parseSemantics(semanticContext &sc) {

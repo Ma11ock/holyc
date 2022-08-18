@@ -503,7 +503,7 @@ hclang::decl ParseTreeImpl::declarationSpecifiers(std::optional<hclang::typeInfo
         parseRet(declarationSpecifiers(info, sclass | hclang::StorageClass::_Extern));
         break;
     case TT::Star:
-        info = info->pointerTo();
+        parseRet(declarationSpecifiers(info->pointerTo(), sclass));
         break;
     case TT::Identifier:
         // Variable name.
@@ -924,9 +924,14 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
             postfixEvalStack.pop();
             hclang::exp expr = nullptr;
             if (std::holds_alternative<hclang::declRef>(texpr)) {
-                if (o.op == O::AddressOf || hclang::isAssignment(o.op)) {
+                if (hclang::isAssignment(o.op)) {
                     postfixEvalStack.push(
                         hclang::makeUnAsgn(o.op, std::get<hclang::declRef>(texpr), o.lex));
+                    break;
+                } else if (o.op == hclang::Operator::AddressOf ||
+                           o.op == hclang::Operator::Dereference) {
+                    postfixEvalStack.push(
+                        hclang::makeUnOp(o.op, std::get<hclang::declRef>(texpr), o.lex));
                     break;
                 } else {
                     expr = hclang::makeL2Rval(std::get<hclang::declRef>(texpr));

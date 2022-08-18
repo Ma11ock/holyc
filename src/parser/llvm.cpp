@@ -573,6 +573,29 @@ llvm::Value *generateEntryBlockAlloca<std::int64_t>(const hclang::Identifier &id
 }
 
 /**
+ * Allocate space on the stack for a local variable (8 bytes / pointer).
+ * @param id Identifier for the local variable.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM value pointing to stack-allocated space.
+ */
+llvm::Value *generateEntryBlockAllocaPtr(const hclang::Identifier &id, hclang::parserContext &pc,
+                                         hclang::typeInfo ti) {
+    if (auto symbol = pc.symbolTable.find(id); symbol && symbol.isVar()) {
+        return symbol.variable;
+    } else if (symbol && !symbol.isVar()) {
+        throw std::invalid_argument(fmt::format("id {} is a function, expected variable"));
+    }
+    auto nId = id.getId();
+
+    llvm::Function *curFn = pc.builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> tmpBuilder(&curFn->getEntryBlock(), curFn->getEntryBlock().begin());
+    llvm::StringRef name(nId.data(), nId.size());
+    auto alloca = tmpBuilder.CreateAlloca(llvmTypeFrom(ti, pc), nullptr, name);
+    pc.symbolTable[id] = alloca;
+    return alloca;
+}
+
+/**
  * Allocate space on the stack for a local variable.
  * Note: <T> must be a type for which there is a template specialization.
  * @param id Identifier for the local variable.
@@ -655,6 +678,21 @@ llvm::Value *readLvalue<std::uint64_t>(std::string_view name, hclang::parserCont
         ptr = integerConstant(UINT32_C(0), pc);
     }
     return pc.builder.CreateLoad(llvm::Type::getInt64Ty(pc.context), ptr, name);
+}
+
+/**
+ * Create a 8 byte load instruction from an Lvalue.
+ * @param name Identifier to create a load for.
+ * @param pc Context object that contains the global LLVM objects.
+ * @return LLVM LValue of variable `name`.
+ */
+llvm::Value *readLvaluePtr(std::string_view name, hclang::parserContext &pc, hclang::typeInfo ti) {
+    llvm::Value *ptr = pc.symbolTable.find(hclang::Identifier(name)).variable;
+    if (!ptr) {
+        ptr = integerConstant(UINT32_C(0), pc);
+    }
+    return pc.builder.CreateLoad(llvmTypeFrom(ti, pc), ptr, name);
+    // return pc.builder.CreatePtrToInt(ptr, llvm::Type::getInt64Ty(pc.context), "rvalueptrcast");
 }
 
 /**
@@ -837,7 +875,7 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs, hclang::
  * invalid.
  */
 static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op,
-                                   hclang::parserContext &pc) {
+                                   hclang::parserContext &pc, hclang::typeInfo ti = {}) {
     if (!expr) {
         return nullptr;
     }
@@ -850,8 +888,17 @@ static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op,
         return pc.builder.CreateNot(expr, "nottmp");
         break;
     case O::Positive:
+        // If Positive, `expr` should be an rvalue.
         return expr;
         break;
+    case O::AddressOf:
+        // If AddressOf, `expr` should be an lvalue.
+        return expr;
+        break;
+    case O::Dereference: {
+        auto tmp = pc.builder.CreateLoad(llvmTypeFrom(ti, pc), expr, "derefptrtmp");
+        return pc.builder.CreateLoad(llvmTypeFrom(*ti, pc), tmp, "dereftmp");
+    } break;
     default:
         break;
     }
@@ -1019,6 +1066,9 @@ hclang::LLV hclang::VariableDeclaration::toLLVM(parserContext &pc) const {
     case hct::U64i:
         return generateEntryBlockAlloca<std::int64_t>(mId, pc);
         break;
+    case hct::Pointer:
+        return generateEntryBlockAllocaPtr(mId, pc, mType);
+        break;
     case hct::Class:
         break;
     case hct::Enum:
@@ -1060,7 +1110,7 @@ hclang::LLV hclang::BinaryOperator::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::UnaryOperator::toLLVM(parserContext &pc) const {
-    return unaryOperation(mExpr->toLLVM(pc), mOp, pc);
+    return unaryOperation(mExpr->toLLVM(pc), mOp, pc, mExpr->getType());
 }
 
 hclang::LLV hclang::UnaryAssignment::toLLVM(parserContext &pc) const {
@@ -1115,6 +1165,8 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
     if (!mExpr) {
         throw std::invalid_argument("Cast: Child is null");
     }
+
+    auto exprType = mExpr->getType();
     switch (mType.type) {
     case hct::I8i:
     case hct::U8i:
@@ -1134,7 +1186,11 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
                                         "i64cast");
         break;
     case hct::Pointer:
-        return pc.builder.CreateIntToPtr(mExpr->toLLVM(pc), llvmTypeFrom(mType, pc), "pcast");
+        if (exprType.isPointer()) {
+            return pc.builder.CreateBitCast(mExpr->toLLVM(pc), llvmTypeFrom(mType, pc), "pcast");
+        } else if (exprType.isInteger()) {
+            return pc.builder.CreateIntToPtr(mExpr->toLLVM(pc), llvmTypeFrom(mType, pc), "pcast");
+        }
         break;
     default:
         break;
@@ -1165,6 +1221,9 @@ hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
     case hct::U64i:
     case hct::I64i:
         return readLvalue<std::uint64_t>(underlyingDecl, pc);
+        break;
+    case hct::Pointer:
+        return readLvaluePtr(mDeclRef->getIdRef().getId(), pc, underlyingDecl->getType());
         break;
     default:
         break;
@@ -1282,8 +1341,6 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
     auto prototype = llvm::FunctionType::get(llvmTypeFrom(getType(), pc), args, false);
     auto func = llvm::Function::Create(prototype, llvm::GlobalValue::ExternalLinkage,
                                        llvm::Twine(getIdRef().getId()), pc.module);
-    // TODO update symbol table with the function signature.
-
     if (mDefinition) {
         // Supply argument names and update the symbol table.
         pc.symbolTable[getIdRef()] = llvmSymbol(prototype, func);
@@ -1292,9 +1349,15 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
         // Set up new block stack.
         BlockStack bs;
         bs.push("entry", pc.context, pc.builder, func);
+        int argIndex = 0;
         for (auto &arg : func->args()) {
-            auto name = (*(mArgsIter++))->getIdRef();
+            argIndex++;
+            auto hclangArg = (*(mArgsIter++));
+            auto name = hclangArg->getIdRef();
             arg.setName(name.getId());
+            if (hclangArg->getType().isPointer()) {
+                func->addParamAttr(argIndex, llvm::Attribute::NoUndef);
+            }
             // Make a tmp variable for loading and storing.
             auto newVar = generateEntryBlockAlloca(arg.getType(), name, pc);
             pc.symbolTable[name] = newVar;

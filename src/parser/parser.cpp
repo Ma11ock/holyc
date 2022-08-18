@@ -125,11 +125,13 @@ class ParseTreeImpl : public hclang::ParseTree {
     hclang::Lexeme getNextLookahead();
     hclang::GR programStart();
     hclang::decl declarationSpecifiers(std::optional<hclang::typeInfo> info = std::nullopt,
-        hclang::StorageClass sclass = hclang::StorageClass::Default, bool isFuncArg = false);
-    hclang::decl declarationIdentifier(
-        hclang::typeInfo info, hclang::StorageClass sclass, hclang::Identifier id);
-    hclang::varInit declarationInitializationEqual(
-        hclang::typeInfo info, hclang::StorageClass sclass, hclang::Identifier id);
+                                       hclang::StorageClass sclass = hclang::StorageClass::Default,
+                                       bool isFuncArg = false);
+    hclang::decl declarationIdentifier(hclang::typeInfo info, hclang::StorageClass sclass,
+                                       hclang::Identifier id);
+    hclang::varInit declarationInitializationEqual(hclang::typeInfo info,
+                                                   hclang::StorageClass sclass,
+                                                   hclang::Identifier id);
     hclang::declStmnt declarationStatementStart();
     hclang::cmpdStmnt compoundStatementStart();
 
@@ -152,8 +154,8 @@ class ParseTreeImpl : public hclang::ParseTree {
     hclang::label labelStart(bool fromGoto = false);
 
     std::list<hclang::varDecl> funcDeclList();
-    hclang::funcDecl funcDeclStart(
-        hclang::typeInfo info, hclang::StorageClass sclass, hclang::Identifier id);
+    hclang::funcDecl funcDeclStart(hclang::typeInfo info, hclang::StorageClass sclass,
+                                   hclang::Identifier id);
 };
 
 #define parseRet(funcall)           \
@@ -222,7 +224,7 @@ hclang::ifStmnt ParseTreeImpl::ifStart() {
     switch (mLookAhead.getTokenType()) {
     case TT::If:
         return hclang::makeIf(expressionArgumentStart(), compoundStatementStart(), elseIfStart(),
-            elseStart(), mLookAhead);
+                              elseStart(), mLookAhead);
         break;
     default:
         pushTokenToFront();
@@ -258,8 +260,8 @@ hclang::whileStmnt ParseTreeImpl::whileStart() {
     getNextLookahead();
     switch (mLookAhead.getTokenType()) {
     case TT::While:
-        return hclang::makeWhile(
-            expressionArgumentStart(), compoundStatementStart(), false, mLookAhead);
+        return hclang::makeWhile(expressionArgumentStart(), compoundStatementStart(), false,
+                                 mLookAhead);
         break;
     case TT::Do: {
         auto startLex = mLookAhead;
@@ -287,7 +289,7 @@ hclang::forStmnt ParseTreeImpl::forStart() {
     switch (mLookAhead.getTokenType()) {
     case TT::For:
         return hclang::makeFor(expressionList(true, true), expressionCompoundStart(),
-            expressionList(false, false), compoundStatementStart(), mLookAhead);
+                               expressionList(false, false), compoundStatementStart(), mLookAhead);
         break;
         break;
     default:
@@ -477,8 +479,8 @@ hclang::GR ParseTreeImpl::programStart() {
     return nullptr;
 }
 
-hclang::decl ParseTreeImpl::declarationSpecifiers(
-    std::optional<hclang::typeInfo> info, hclang::StorageClass sclass, bool isFunc) {
+hclang::decl ParseTreeImpl::declarationSpecifiers(std::optional<hclang::typeInfo> info,
+                                                  hclang::StorageClass sclass, bool isFunc) {
     getNextLookahead();
     // Check for type.
     if (auto ti = getTypeFrom(mLookAhead); ti) {
@@ -500,6 +502,9 @@ hclang::decl ParseTreeImpl::declarationSpecifiers(
     case TT::_Extern:
         parseRet(declarationSpecifiers(info, sclass | hclang::StorageClass::_Extern));
         break;
+    case TT::Star:
+        info = info->pointerTo();
+        break;
     case TT::Identifier:
         // Variable name.
         if (!info) {
@@ -514,8 +519,9 @@ hclang::decl ParseTreeImpl::declarationSpecifiers(
     throw std::runtime_error(fmt::format("declspec: {}\n", mLookAhead.getTokenType()));
 }
 
-hclang::decl ParseTreeImpl::declarationIdentifier(
-    hclang::typeInfo info, hclang::StorageClass sclass, hclang::Identifier id) {
+hclang::decl ParseTreeImpl::declarationIdentifier(hclang::typeInfo info,
+                                                  hclang::StorageClass sclass,
+                                                  hclang::Identifier id) {
     getNextLookahead();
 
     switch (mLookAhead.getTokenType()) {
@@ -559,23 +565,29 @@ std::list<hclang::varDecl> ParseTreeImpl::funcDeclList() {
         case TT::I8i:
         case TT::Identifier:
             if (info || (info = getTypeFrom(mLookAhead))) {
-                switch (getNextLookahead().getTokenType()) {
-                case TT::Identifier: {
-                    auto inVar = hclang::makeVarDecl(
-                        mLookAhead, *info, hclang::StorageClass::Default, varStartLexeme);
-                    result.push_back(inVar);
-                    mSymbolTable.add(inVar->getIdRef(), inVar);
-                } break;
-                case TT::Star:
-                    // TODO
-                    break;
-                case TT::Comma:
-                    break;
-                case TT::Rparen:
-                    pushTokenToFront();
-                    break;
-                default:
-                    break;
+                hclang::Lexeme idLex;
+                bool keepParsing = true;
+                while (keepParsing) {
+                    switch (getNextLookahead().getTokenType()) {
+                    case TT::Identifier:
+                        idLex = mLookAhead;
+                        break;
+                    case TT::Star:
+                        info = info->pointerTo();
+                        break;
+                    case TT::Rparen:
+                        pushTokenToFront();
+                    case TT::Comma: {
+                        // Determine pointer information if any.
+                        auto inVar = hclang::makeVarDecl(
+                            idLex, *info, hclang::StorageClass::Default, varStartLexeme);
+                        result.push_back(inVar);
+                        mSymbolTable.add(inVar->getIdRef(), inVar);
+                        keepParsing = false;
+                    } break;
+                    default:
+                        break;
+                    }
                 }
             } else {
                 throw std::invalid_argument(
@@ -589,8 +601,8 @@ std::list<hclang::varDecl> ParseTreeImpl::funcDeclList() {
     return result;
 }
 
-hclang::funcDecl ParseTreeImpl::funcDeclStart(
-    hclang::typeInfo info, hclang::StorageClass sclass, hclang::Identifier id) {
+hclang::funcDecl ParseTreeImpl::funcDeclStart(hclang::typeInfo info, hclang::StorageClass sclass,
+                                              hclang::Identifier id) {
     auto args = funcDeclList();
 
     hclang::funcDefn definition = nullptr;
@@ -616,8 +628,9 @@ hclang::funcDecl ParseTreeImpl::funcDeclStart(
     return symbol;
 }
 
-hclang::varInit ParseTreeImpl::declarationInitializationEqual(
-    hclang::typeInfo info, hclang::StorageClass sclass, hclang::Identifier id) {
+hclang::varInit ParseTreeImpl::declarationInitializationEqual(hclang::typeInfo info,
+                                                              hclang::StorageClass sclass,
+                                                              hclang::Identifier id) {
     pushTableRet(hclang::makeVarInit(id, info, expressionCompoundStart(true)));
 }
 
@@ -653,11 +666,12 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
         if (auto sym = mSymbolTable.find(mLookAhead.getText());
             sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {
             ys.push(hclang::makeDeclRef(hclang::Identifier(mLookAhead),
-                hclang::DeclarationReference::Type::LValue, mSymbolTable, mLookAhead));
+                                        hclang::DeclarationReference::Type::LValue, mSymbolTable,
+                                        mLookAhead));
         } else if (sym && sym->getDeclType() == hclang::Declaration::Type::Function) {
             // Parse function call.
-            ys.push(hclang::makeFuncCall(
-                std::static_pointer_cast<hclang::FunctionDeclaration>(sym), expressionList()));
+            ys.push(hclang::makeFuncCall(std::static_pointer_cast<hclang::FunctionDeclaration>(sym),
+                                         expressionList()));
         } else {
             throw std::invalid_argument(
                 fmt::format("Undefined identifier: {}", mLookAhead.getText()));
@@ -941,6 +955,7 @@ hclang::exp ParseTreeImpl::YardShunter::reduce() {
                     postfixEvalStack.push(
                         hclang::makeBinAsgn(o.op, std::get<hclang::declRef>(tlhs), rhs, o.lex));
                     break;
+
                 } else {
                     lhs = hclang::makeL2Rval(std::get<hclang::declRef>(tlhs));
                 }

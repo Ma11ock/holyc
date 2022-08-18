@@ -1,9 +1,11 @@
 #include "config.hpp"
 
-#include <vector>
-#include <string_view>
-#include <filesystem>
 #include <fmt/core.h>
+
+#include <filesystem>
+#include <string_view>
+#include <vector>
+
 #include "log.hpp"
 #include "util.hpp"
 
@@ -33,14 +35,13 @@ For bug reporting or contributions please see the following URLs:
    <https://github.com/Ma11ock/holyc>
 )HELP";
 
-template<typename T>
+template <typename T>
 static T getNextArg(const argsType &args, argsLenType &curIndex) {
 }
 
-template<>
-std::string_view getNextArg<std::string_view>(const argsType &args,
-                                              argsLenType &curIndex) {
-    if(curIndex >= args.size()) {
+template <>
+std::string_view getNextArg<std::string_view>(const argsType &args, argsLenType &curIndex) {
+    if (curIndex >= args.size()) {
         throw std::invalid_argument("argument to '-o' is missing (expected a file path)");
     }
 
@@ -48,65 +49,70 @@ std::string_view getNextArg<std::string_view>(const argsType &args,
 }
 
 hclang::Config::Config(const argsType &args)
-    : mSourcePaths({}),mOutputPath(),mDumpAst(false),mEmitLLVM(false),
-      mSyntaxOnly(false) {
-
-    for(argsLenType i = 0; i < args.size(); i++) {
+    : mSourcePaths({}),
+      mOutputPath(),
+      mDumpAst(false),
+      mEmitLLVM(false),
+      mSyntaxOnly(false),
+      mSaveTmps(false) {
+    for (argsLenType i = 0; i < args.size(); i++) {
         const auto &arg = args[i];
 
-        if(arg == "-o") { // Output file.
+        if (arg == "-o") {  // Output file.
             mOutputPath = getNextArg<std::string_view>(args, i);
-        } else if(arg == "-ast-dump") {
+        } else if (arg == "-ast-dump") {
             mDumpAst = true;
-        } else if(arg == "-emit-llvm") {
+        } else if (arg == "-emit-llvm") {
             mEmitLLVM = true;
-        } else if(arg == "-fsyntax-only") {
+        } else if (arg == "-fsyntax-only") {
             mSyntaxOnly = true;
-        } else if(arg == "-v") {
+        } else if (arg == "-v") {
             hclang::log::isEnabled = true;
-        } else if(arg == "-help") {
+        } else if (arg == "-help") {
             mHelp = true;
             fmt::print("{}", HELP_STR);
-        } else if(arg == "-c") {
+        } else if (arg == "-c") {
             mCompilationUnit = true;
-        } else { // No flag.
+        } else if (arg == "-save-temps") {
+            mSaveTmps = true;
+        } else {  // No flag.
             mSourcePaths.push_back(arg);
         }
     }
 
-    if(mSourcePaths.empty()) {
+    if (mSourcePaths.empty()) {
         throw std::invalid_argument("no input files");
     }
 
     // Set default output path.
-    if(mOutputPath.empty() && (mCompilationUnit || mEmitLLVM)) {
+    if (mOutputPath.empty() && (mCompilationUnit || mEmitLLVM)) {
         std::string outputPath;
-        for(auto inputPath : mSourcePaths) {
+        for (auto inputPath : mSourcePaths) {
             outputPath += inputPath.replace_extension().u8string();
         }
         mOutputPath = outputPath;
-    } else if(mOutputPath.empty()) {
+    } else if (mOutputPath.empty()) {
         mOutputPath = "a.out";
     }
 }
 
-std::vector<char*> hclang::Config::makeClangArgv(const std::vector<fs::path> &sources) const {
-    std::vector<char*> result = { util::strdup("clang") };
+std::vector<char *> hclang::Config::makeClangArgv(const std::vector<fs::path> &sources) const {
+    std::vector<char *> result = {util::strdup("clang")};
 
-    if(!mOutputPath.empty()) {
+    if (!mOutputPath.empty()) {
         result.push_back(util::strdup("-o"));
         result.push_back(util::strdup(mOutputPath.c_str()));
     }
 
-    if(mCompilationUnit) {
+    if (mCompilationUnit) {
         result.push_back(util::strdup("-c"));
     }
 
-    if(log::isEnabled) {
+    if (log::isEnabled) {
         result.push_back(util::strdup("-v"));
     }
 
-    for(const auto &source : sources) {
+    for (const auto &source : sources) {
         result.push_back(util::strdup(source.c_str()));
     }
 

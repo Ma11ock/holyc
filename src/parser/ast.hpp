@@ -235,10 +235,14 @@ struct typeInfo {
         return true;
     }
 
+    inline typeInfo pointerTo() {
+        return hclang::typeInfo{Identifier(), std::make_shared<typeInfo>(*this), HCType::Pointer};
+    }
+
     inline bool operator==(const typeInfo &other) const {
         return (id == other.id) && (type == other.type) &&
                (((pointer && other.pointer) && (*pointer == *other.pointer)) ||
-                   (!pointer && !other.pointer));
+                (!pointer && !other.pointer));
     }
 
     inline bool isFloat() const {
@@ -302,6 +306,10 @@ struct typeInfo {
             break;
         }
         return false;
+    }
+
+    inline bool isPointer() const {
+        return type == HCType::Pointer;
     }
 };
 
@@ -935,7 +943,7 @@ inline elIf makeElIf(Args &&...args) {
 class If : public Statement {
     public:
     If(exp conditional, cmpdStmnt body, std::list<elIf> elIfs, cmpdStmnt elseBody,
-        std::optional<Lexeme> l = std::nullopt)
+       std::optional<Lexeme> l = std::nullopt)
         : Statement(l),
           mConditional(conditional),
           mBody(body),
@@ -988,8 +996,8 @@ inline ifStmnt makeIf(Args &&...args) {
 
 class While : public Statement {
     public:
-    While(
-        exp conditional, cmpdStmnt body, bool isDo = false, std::optional<Lexeme> l = std::nullopt)
+    While(exp conditional, cmpdStmnt body, bool isDo = false,
+          std::optional<Lexeme> l = std::nullopt)
         : Statement(l), mConditional(conditional), mBody(body), mIsDo(isDo) {
     }
 
@@ -1187,7 +1195,7 @@ class Declaration : public Statement {
      * Value constructor. Set the lexeme.
      */
     Declaration(const Identifier &id, typeInfo type, StorageClass sclass = StorageClass::Default,
-        std::optional<Lexeme> l = std::nullopt)
+                std::optional<Lexeme> l = std::nullopt)
         : Statement(l), mId(id), mType(type), mStorageClass(sclass) {
     }
 
@@ -1239,7 +1247,8 @@ class VariableDeclaration : public Declaration {
      * Value constructor. Set the ID of the declared variable.
      */
     VariableDeclaration(const Identifier &id, typeInfo type,
-        StorageClass sclass = StorageClass::Default, std::optional<Lexeme> l = std::nullopt)
+                        StorageClass sclass = StorageClass::Default,
+                        std::optional<Lexeme> l = std::nullopt)
         : Declaration(id, type, sclass, l) {
     }
 
@@ -1324,12 +1333,12 @@ inline funcDefn makeFuncDefn(Args &&...args) {
 class FunctionDeclaration : public Declaration {
     public:
     FunctionDeclaration(typeInfo type, const Identifier &id, funcDefn defn, std::list<varDecl> args,
-        StorageClass sclass, std::optional<Lexeme> l = std::nullopt)
+                        StorageClass sclass, std::optional<Lexeme> l = std::nullopt)
         : Declaration(id, type, sclass, l), mDefinition(defn), mArgs(args) {
     }
 
     FunctionDeclaration(typeInfo type, const Identifier &id, std::list<varDecl> args,
-        StorageClass sclass, std::optional<Lexeme> l = std::nullopt)
+                        StorageClass sclass, std::optional<Lexeme> l = std::nullopt)
         : Declaration(id, type, sclass, l), mDefinition(nullptr), mArgs(args) {
     }
 
@@ -1513,7 +1522,7 @@ class DeclarationReference : public Expression {
     };
 
     DeclarationReference(const Identifier &id, Type type, const SymbolTable<decl> &table,
-        std::optional<Lexeme> l = std::nullopt);
+                         std::optional<Lexeme> l = std::nullopt);
     virtual ~DeclarationReference() = default;
     /**
      * Generate LLVM byteco<decl>de.
@@ -1873,6 +1882,11 @@ int getPrecedence(Operator op);
 template <typename T>
 inline GR scastGR(std::shared_ptr<T> p) {
     return std::static_pointer_cast<GrammarRule>(p);
+}
+
+template <typename T>
+inline exp scastEx(std::shared_ptr<T> p) {
+    return std::static_pointer_cast<Expression>(p);
 }
 
 std::uint64_t sizeOf(typeInfo ti);

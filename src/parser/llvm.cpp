@@ -1167,35 +1167,122 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
     }
 
     auto exprType = mExpr->getType();
-    switch (mType.type) {
-    case hct::I8i:
-    case hct::U8i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc), llvm::Type::getInt8Ty(pc.context), true,
-                                        "i8cast");
-    case hct::I16i:
-    case hct::U16i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc), llvm::Type::getInt16Ty(pc.context), true,
-                                        "i16cast");
-    case hct::I32i:
-    case hct::U32i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc), llvm::Type::getInt32Ty(pc.context), true,
-                                        "i32cast");
-    case hct::I64i:
-    case hct::U64i:
-        return pc.builder.CreateIntCast(mExpr->toLLVM(pc), llvm::Type::getInt64Ty(pc.context), true,
-                                        "i64cast");
-        break;
-    case hct::Pointer:
-        if (exprType.isPointer()) {
-            return pc.builder.CreateBitCast(mExpr->toLLVM(pc), llvmTypeFrom(mType, pc), "pcast");
-        } else if (exprType.isInteger()) {
-            return pc.builder.CreateIntToPtr(mExpr->toLLVM(pc), llvmTypeFrom(mType, pc), "pcast");
+    auto exprLLVM = mExpr->toLLVM(pc);
+    if (exprType.isInteger()) {
+        // int-><type>
+        switch (mType.type) {
+        case hct::I8i:
+        case hct::U8i:
+            return pc.builder.CreateIntCast(exprLLVM, llvm::Type::getInt8Ty(pc.context), true,
+                                            "i8cast");
+        case hct::I16i:
+        case hct::U16i:
+            return pc.builder.CreateIntCast(exprLLVM, llvm::Type::getInt16Ty(pc.context), true,
+                                            "i16cast");
+        case hct::I32i:
+        case hct::U32i:
+            return pc.builder.CreateIntCast(exprLLVM, llvm::Type::getInt32Ty(pc.context), true,
+                                            "i32cast");
+        case hct::I64i:
+        case hct::U64i:
+            return pc.builder.CreateIntCast(exprLLVM, llvm::Type::getInt64Ty(pc.context), true,
+                                            "i64cast");
+            break;
+        case hct::F64:
+            // int->f64
+            if (exprType.isSigned()) {
+                return pc.builder.CreateSIToFP(exprLLVM, llvm::Type::getDoubleTy(pc.context), "");
+            }
+            return pc.builder.CreateUIToFP(exprLLVM, llvm::Type::getDoubleTy(pc.context), "pcast");
+            break;
+        case hct::Pointer:
+            break;
+        default:
+            break;
         }
-        break;
-    default:
-        break;
+    } else if (exprType.isPointer()) {
+        // ptr-><type>
+        switch (mType.type) {
+        case hct::I8i:
+        case hct::U8i:
+            return pc.builder.CreatePtrToInt(exprLLVM, llvm::Type::getInt8Ty(pc.context),
+                                             "ptrtoi8cast");
+            break;
+        case hct::I16i:
+        case hct::U16i:
+            return pc.builder.CreatePtrToInt(exprLLVM, llvm::Type::getInt16Ty(pc.context),
+                                             "ptrtoi16cast");
+            break;
+        case hct::I32i:
+        case hct::U32i:
+            return pc.builder.CreatePtrToInt(exprLLVM, llvm::Type::getInt32Ty(pc.context),
+                                             "ptrtoi32cast");
+            break;
+        case hct::I64i:
+        case hct::U64i:
+            return pc.builder.CreatePtrToInt(exprLLVM, llvm::Type::getInt64Ty(pc.context),
+                                             "ptrtoi64cast");
+            break;
+        case hct::F64: {
+            // ptr->f64
+            auto p2u64 = pc.builder.CreatePtrToInt(exprLLVM, llvm::Type::getInt64Ty(pc.context),
+                                                   "ptrtou64cast");
+            return pc.builder.CreateUIToFP(p2u64, llvm::Type::getDoubleTy(pc.context),
+                                           "ptrtof64cast");
+        } break;
+        case hct::Pointer:
+            // Ptr (to something) to ptr (to something else)
+            return pc.builder.CreateBitCast(exprLLVM, llvmTypeFrom(mType, pc), "ptrtoptrcast");
+            break;
+        default:
+            break;
+        }
+    } else if (exprType.isFloat()) {
+        // f64-><type>
+        switch (mType.type) {
+        case hct::I8i:
+            return pc.builder.CreateFPToSI(exprLLVM, llvm::Type::getInt8Ty(pc.context),
+                                           "fptoi8cast");
+            break;
+        case hct::U8i:
+            return pc.builder.CreateFPToUI(exprLLVM, llvm::Type::getInt8Ty(pc.context),
+                                           "fptoi8cast");
+            break;
+        case hct::I16i:
+            return pc.builder.CreateFPToSI(exprLLVM, llvm::Type::getInt16Ty(pc.context),
+                                           "fptoi16cast");
+            break;
+        case hct::U16i:
+            return pc.builder.CreateFPToUI(exprLLVM, llvm::Type::getInt16Ty(pc.context),
+                                           "fptoi16cast");
+            break;
+        case hct::I32i:
+            return pc.builder.CreateFPToSI(exprLLVM, llvm::Type::getInt32Ty(pc.context),
+                                           "fptoi32cast");
+            break;
+        case hct::U32i:
+            return pc.builder.CreateFPToUI(exprLLVM, llvm::Type::getInt32Ty(pc.context),
+                                           "fptoi32cast");
+            break;
+        case hct::I64i:
+            return pc.builder.CreateFPToSI(exprLLVM, llvm::Type::getInt64Ty(pc.context),
+                                           "fptoi64cast");
+            break;
+        case hct::U64i:
+            return pc.builder.CreateFPToUI(exprLLVM, llvm::Type::getInt64Ty(pc.context),
+                                           "fptoi64cast");
+            break;
+        case hct::Pointer: {
+            auto ftou = pc.builder.CreateFPToUI(exprLLVM, llvm::Type::getInt64PtrTy(pc.context),
+                                                "f64tou64cast");
+            return pc.builder.CreateIntToPtr(ftou, llvmTypeFrom(mExpr->getType(), pc),
+                                             "f64topcast");
+        } break;
+        default:
+            break;
+        }
     }
-    return nullptr;
+    return exprLLVM;
 }
 
 hclang::LLV hclang::DeclarationReference::toLLVM(parserContext &pc) const {
@@ -1389,10 +1476,13 @@ hclang::LLV hclang::Return::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::LLVMCast::toLLVM(parserContext &pc) const {
-    // TODO check expression's type.
     if (!mExpr) {
         throw std::invalid_argument("Cast: Child is null");
     }
+    // TODO check expression's type.
+    // If also an int, this is fine.
+    // But if float, we need to convert differently.
+    // Also true with pointer.
     switch (mType.type) {
     case hct::I8i:
     case hct::U8i:
@@ -1414,7 +1504,7 @@ hclang::LLV hclang::LLVMCast::toLLVM(parserContext &pc) const {
                                         "casti64");
         break;
     case hct::Pointer:
-        return pc.builder.CreateIntToPtr(mExpr, llvmTypeFrom(mType, pc), "castp");
+        return pc.builder.CreateIntToPtr(mExpr, llvmTypeFrom(mType, pc), "castitop");
         break;
     default:
         break;

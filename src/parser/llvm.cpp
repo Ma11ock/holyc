@@ -1015,6 +1015,11 @@ void hclang::ParseTree::compile(const hclang::fs::path &path) const {
     }
 }
 
+hclang::LLV hclang::StringConstant::toLLVM(parserContext &pc) const {
+    // TODO make sure that LLVM ensures the string is NULL terminated.
+    return pc.builder.CreateGlobalStringPtr(mStr, "globalstr", 0, pc.module);
+}
+
 hclang::LLV hclang::IntegerConstant::toLLVM(parserContext &pc) const {
     switch (mType.type) {
     case hct::I8i:

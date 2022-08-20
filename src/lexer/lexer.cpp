@@ -1,45 +1,46 @@
 #include "lexer.hpp"
 
-#include <string>
-#include <regex>
-#include <tuple>
-#include <string_view>
-#include <sstream>
-#include <fstream>
 #include <fmt/core.h>
+
 #include <algorithm>
+#include <fstream>
 #include <limits>
+#include <regex>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <tuple>
+
 #include "../util.hpp"
 
 using TT = hclang::TokenType;
 using namespace std::string_view_literals;
 
-namespace fs = std::filesystem;
-
 class Token {
-public:
-    Token(const std::string &regex, hclang::TokenType type,
-          bool canBeMultiline = false)
+    public:
+    Token(const std::string &regex, hclang::TokenType type, bool canBeMultiline = false)
         : mRegex(regex, std::regex_constants::icase | std::regex_constants::ECMAScript),
-        mType(type),mCanBeMultiline(canBeMultiline) { }
+          mType(type),
+          mCanBeMultiline(canBeMultiline) {
+    }
+
     ~Token() = default;
 
-   /**
-    *
-    */
+    /**
+     *
+     */
     std::tuple<bool, std::string_view> match(std::string_view source) const {
         using namespace std::literals;
         using svmatch = std::match_results<std::string_view::const_iterator>;
         svmatch sm;
-        if(!std::regex_search(source.cbegin(), source.cend(), sm, mRegex)) {
+        if (!std::regex_search(source.cbegin(), source.cend(), sm, mRegex)) {
             return std::make_tuple(false, ""sv);
         }
 
         const char *first = sm[0].first;
         const char *last = sm[0].second;
         return std::make_tuple(true,
-                               std::string_view(first,
-                                                static_cast<std::size_t>(last - first)));
+                               std::string_view(first, static_cast<std::size_t>(last - first)));
     }
 
     hclang::TokenType getTokenType() const {
@@ -47,8 +48,7 @@ public:
     }
 
     hclang::Lexeme makeLexeme(std::string_view text) const {
-
-        switch(mType) {
+        switch (mType) {
         case TT::Identifier:
         case TT::IntegerConstant:
         case TT::StringConstant:
@@ -64,15 +64,15 @@ public:
     inline bool maybeMultiline() const {
         return mCanBeMultiline;
     }
-protected:
+
+    protected:
     std::regex mRegex;
     hclang::TokenType mType;
     bool mCanBeMultiline;
 };
 
-
 std::string_view hclang::stringifyTokenType(TokenType type) {
-    switch(type) {
+    switch (type) {
     case TT::Public:
         return "Public";
         break;
@@ -358,12 +358,12 @@ std::string_view hclang::stringifyTokenType(TokenType type) {
     default:
         break;
     }
-    throw std::invalid_argument(fmt::format("Invalid token: (integer){}",
-                                            static_cast<std::uint32_t>(type)));
+    throw std::invalid_argument(
+        fmt::format("Invalid token: (integer){}", static_cast<std::uint32_t>(type)));
 }
 
 bool hclang::Lexeme::hasText() const {
-    switch(mType) {
+    switch (mType) {
     case TT::Identifier:
     case TT::IntegerConstant:
     case TT::StringConstant:
@@ -377,20 +377,18 @@ bool hclang::Lexeme::hasText() const {
 }
 
 std::string hclang::Lexeme::stringify() const {
-    if(hasText()) {
+    if (hasText()) {
         return fmt::format("{}: {}", hclang::stringifyTokenType(mType), mText);
     }
     return std::string(hclang::stringifyTokenType(mType));
 }
 
-
 // Lexer implementation.
 
 hclang::Lexer::Lexer(const fs::path &path, const hclang::Config &config)
-    : mSource(""),mSourcePath(path),mCurLine(1),mCurLineOffset(0),mCurPos(0),
-      mConfig(config) {
+    : mSource(""), mSourcePath(path), mCurLine(1), mCurLineOffset(0), mCurPos(0), mConfig(config) {
     std::ifstream sourceFile(path);
-    if(!sourceFile) {
+    if (!sourceFile) {
         throw std::system_error(util::getError(), std::system_category(), path.string());
     }
 
@@ -486,48 +484,48 @@ hclang::Lexeme hclang::Lexer::pull() {
         Token("^\\^\\=", TT::XorEqual),
         // Constants.
         Token("^'.'", TT::CharacterConstant),
-        Token("^\".*\"", TT::StringConstant), // Maybe multiline?
+        Token("^\".*\"", TT::StringConstant),  // TODO Maybe multiline?
         Token("^(0x[0-9A-Fa-f]+|[0-9]+)(U8|I8|U16|I16|U32|I32|U64|I64)?", TT::IntegerConstant),
-        Token("^([0-9](\\.[0-9](e[-0-9])?)?)+", TT::FloatConstant), // TODO HC might allow hex float constants.
+        Token("^([0-9](\\.[0-9](e[-0-9])?)?)+",
+              TT::FloatConstant),  // TODO HC might allow hex float constants.
         Token("^[_a-zA-Z][_\\w]*", TT::Identifier),
         Token("^[_a-zA-Z][_\\w]*:", TT::Label),
     };
 
-    auto sourcePtr = std::string_view(mSource.data() + mCurPos,
-                                      mSource.size() - mCurPos);
+    auto sourcePtr = std::string_view(mSource.data() + mCurPos, mSource.size() - mCurPos);
 
     // Get matched tokens and store them in a lexeme.
     hclang::Lexeme maxLexeme;
     auto maxEndLineOffset = mCurLineOffset;
-    for(const auto &token : TOKENS) {
+    for (const auto &token : TOKENS) {
         auto [matched, match] = token.match(sourcePtr);
         auto tokSize = match.size();
-        if(matched && tokSize > maxLexeme.getTextLength()) {
+        if (matched && tokSize > maxLexeme.getTextLength()) {
             auto endPos = mCurPos + tokSize;
             auto endLineNo = mCurLine;
-            if(token.maybeMultiline()) {
+            if (token.maybeMultiline()) {
                 // Check matched lexeme for any newline characters.
                 // Update the line offset information if a newline is detected.
                 maxEndLineOffset = mCurPos;
-                for(auto i = match.begin();
-                    (i = std::find(i, match.end(), '\n')) != match.end(); i++) {
+                for (auto i = match.begin(); (i = std::find(i, match.end(), '\n')) != match.end();
+                     i++) {
                     endLineNo++;
                     maxEndLineOffset += (i - match.begin()) + 1;
                 }
-                if(maxEndLineOffset == mCurPos) {
+                if (maxEndLineOffset == mCurPos) {
                     maxEndLineOffset = mCurLineOffset;
                 }
             }
-            maxLexeme = hclang::Lexeme(match, token.getTokenType(),
-                                       mCurLine, mCurPos - mCurLineOffset,
-                                       endLineNo, endPos - maxEndLineOffset);
-        } else if(matched && token.getTokenType() == TT::Eof) {
+            maxLexeme =
+                hclang::Lexeme(match, token.getTokenType(), mCurLine, mCurPos - mCurLineOffset,
+                               endLineNo, endPos - maxEndLineOffset);
+        } else if (matched && token.getTokenType() == TT::Eof) {
             return hclang::Lexeme("", TT::Eof);
         }
     }
 
     // Make sure there was a match.
-    if(maxLexeme == TT::Error) {
+    if (maxLexeme == TT::Error) {
         throw std::invalid_argument("No match");
     }
 
@@ -535,7 +533,7 @@ hclang::Lexeme hclang::Lexer::pull() {
     mCurLineOffset = maxEndLineOffset;
     mCurPos += maxLexeme.getTextLength();
 
-    if(maxLexeme == TT::Space)
+    if (maxLexeme == TT::Space)
         return pull();
     return maxLexeme;
 }
@@ -543,14 +541,14 @@ hclang::Lexeme hclang::Lexer::pull() {
 // Identifier implementation.
 
 hclang::Identifier::Identifier(const hclang::Lexeme &lexeme) : mId("") {
-    if(lexeme != TT::Identifier) {
+    if (lexeme != TT::Identifier) {
         throw std::invalid_argument("Not an id");
     }
     mId = lexeme.getText();
 }
 
 bool hclang::isType(hclang::TokenType type) {
-    switch(type) {
+    switch (type) {
     case TT::I0i:
     case TT::I8i:
     case TT::I16i:
@@ -571,7 +569,7 @@ bool hclang::isType(hclang::TokenType type) {
 }
 
 bool hclang::isOperator(hclang::TokenType type) {
-    switch(type) {
+    switch (type) {
     case TT::Plus:
     case TT::Minus:
     case TT::Star:
@@ -618,7 +616,7 @@ bool hclang::isOperator(hclang::TokenType type) {
 }
 
 bool hclang::isMaybeUnaryOperator(TokenType type) {
-    switch(type) {
+    switch (type) {
     case TT::Plus:
     case TT::Minus:
     case TT::Star:
@@ -637,7 +635,7 @@ bool hclang::isMaybeUnaryOperator(TokenType type) {
 }
 
 bool hclang::isKeyword(hclang::TokenType type) {
-    switch(type) {
+    switch (type) {
     case TT::IntegerConstant:
     case TT::StringConstant:
     case TT::CharacterConstant:
@@ -650,7 +648,7 @@ bool hclang::isKeyword(hclang::TokenType type) {
 }
 
 bool hclang::isSpecifier(hclang::TokenType type) {
-    switch(type) {
+    switch (type) {
     case TT::Static:
     case TT::_Extern:
     case TT::Extern:

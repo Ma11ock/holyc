@@ -662,6 +662,9 @@ void ParseTreeImpl::expressionStart(ParseTreeImpl::YardShunter &ys) {
     case TT::IntegerConstant:
         ys.push(hclang::makeIntConst(mLookAhead));
         break;
+    case TT::StringConstant:
+        ys.push(hclang::makeStringConst(mLookAhead));
+        break;
     case TT::Identifier:
         if (auto sym = mSymbolTable.find(mLookAhead.getText());
             sym && sym->getDeclType() == hclang::Declaration::Type::Variable) {

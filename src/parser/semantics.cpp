@@ -230,7 +230,7 @@ void hclang::UnaryOperator::parseSemantics(semanticContext &sc) {
     }
 }
 
-void hclang::IntegerConstant::parseSemantics(semanticContext &sc) {
+void hclang::Constant::parseSemantics(semanticContext &sc) {
 }
 
 void hclang::CompoundStatement::parseSemantics(semanticContext &sc) {

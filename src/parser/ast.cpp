@@ -43,6 +43,17 @@ void hclang::GrammarRule::setLexeme(std::optional<Lexeme> l) {
     }
 }
 
+// StringConstant.
+
+void hclang::StringConstant::pprint() const {
+    printDefault();
+    fmt::print(" {}, len={}", PRIMARY(mStr), SECONDARY(mStr.size()));
+}
+
+std::string_view hclang::StringConstant::getClassName() const {
+    return "StringConstant";
+}
+
 // IntegerConstant.
 
 hclang::IntegerConstant::IntegerConstant(std::uint64_t value, hclang::typeInfo t,
@@ -306,7 +317,9 @@ std::string_view hclang::IntegerConstant::getClassName() const {
     return "IntegerConstant";
 }
 
-std::list<hclang::GR> hclang::IntegerConstant::getChildren() const {
+// Constant.
+
+std::list<hclang::GR> hclang::Constant::getChildren() const {
     return {};
 }
 

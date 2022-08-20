@@ -44,7 +44,7 @@ class Lexeme {
     }
 
     Lexeme(std::string_view text, TokenType type, fileposType lineNo, fileposType colNo,
-        fileposType endLineNo, fileposType endColNo)
+           fileposType endLineNo, fileposType endColNo)
         : mText(text),
           mLiteralText(""),
           mLineNo(lineNo),
@@ -176,6 +176,7 @@ class Lexer {
 class Identifier {
     public:
     Identifier() = default;
+
     Identifier(std::string_view id) : mId(id) {
     }
 
@@ -261,9 +262,10 @@ struct fmt::formatter<hclang::Lexeme> {
 
     template <typename FormatContext>
     auto format(const hclang::Lexeme &l, FormatContext &ctx) {
-        return fmt::format_to(ctx.out(), "<line:{}:{},col:{}:{}>",
-            __fileposPrinter{l.getStartLineNumber()}, __fileposPrinter{l.getEndLineNumber()},
-            __fileposPrinter{l.getStartColNumber()}, __fileposPrinter{l.getEndColNumber()});
+        return fmt::format_to(
+            ctx.out(), "<line:{}:{},col:{}:{}>", __fileposPrinter{l.getStartLineNumber()},
+            __fileposPrinter{l.getEndLineNumber()}, __fileposPrinter{l.getStartColNumber()},
+            __fileposPrinter{l.getEndColNumber()});
     }
 };
 
@@ -284,9 +286,10 @@ struct fmt::formatter<std::optional<hclang::Lexeme>> {
             const auto &l = *ol;
             return fmt::format_to(ctx.out(), "{}", l);
         }
-        return fmt::format_to(ctx.out(), "<line:{}:{},col:{}:{}>",
+        return fmt::format_to(
+            ctx.out(), "<line:{}:{},col:{}:{}>", __fileposPrinter{hclang::noLineNum},
             __fileposPrinter{hclang::noLineNum}, __fileposPrinter{hclang::noLineNum},
-            __fileposPrinter{hclang::noLineNum}, __fileposPrinter{hclang::noLineNum});
+            __fileposPrinter{hclang::noLineNum});
     }
 };
 

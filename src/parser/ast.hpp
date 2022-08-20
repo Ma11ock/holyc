@@ -741,9 +741,69 @@ class Constant : public Expression {
     Constant(typeInfo type, std::optional<Lexeme> l = std::nullopt) : Expression(type, l) {
     }
 
+    /**
+     * Get all production rule members.
+     * @return All production rule members.
+     */
+    virtual std::list<GR> getChildren() const;
+    /**
+     * Perform semantic parsing of `this` and children. Ensures rules of
+     * HolyC, like the type system, are followed.
+     */
+    virtual void parseSemantics(semanticContext &sc);
+
     /// Defaulted destructor.
     virtual ~Constant() = default;
 };
+
+/**
+ * String constant. Null terminated U8i*.
+ */
+class StringConstant : public Constant {
+    public:
+    StringConstant(std::string_view str, std::optional<Lexeme> l = std::nullopt)
+        : Constant(
+              typeInfo{Identifier(),
+                       std::make_shared<typeInfo>(typeInfo{Identifier(), nullptr, HCType::U8i}),
+                       HCType::Pointer},
+              l),
+          mStr(str) {
+    }
+
+    StringConstant(const Lexeme &l)
+        : Constant(
+              typeInfo{Identifier(),
+                       std::make_shared<typeInfo>(typeInfo{Identifier(), nullptr, HCType::U8i}),
+                       HCType::Pointer},
+              l),
+          mStr(l.getText()) {
+    }
+
+    virtual ~StringConstant() = default;
+
+    /**
+     * Generate LLVM bytecode.
+     * @return LLVM object representing this production rule.
+     */
+    virtual LLV toLLVM(parserContext &pc) const;
+    /// Pretty print this grammar rule (does not print children).
+    virtual void pprint() const;
+    /**
+     * Get class name.
+     * @return Class name.
+     */
+    virtual std::string_view getClassName() const;
+
+    protected:
+    std::string_view mStr;
+};
+
+using stringConst = std::shared_ptr<StringConstant>;
+
+template <typename... Args>
+inline stringConst makeStringConst(Args &&...args) {
+    return std::make_shared<StringConstant>(std::forward<Args>(args)...);
+}
 
 /**
  * Integer constants (for intrinsics).
@@ -806,16 +866,6 @@ class IntegerConstant : public Constant {
      * @return Class name.
      */
     virtual std::string_view getClassName() const;
-    /**
-     * Get all production rule members.
-     * @return All production rule members.
-     */
-    virtual std::list<GR> getChildren() const;
-    /**
-     * Perform semantic parsing of `this` and children. Ensures rules of
-     * HolyC, like the type system, are followed.
-     */
-    virtual void parseSemantics(semanticContext &sc);
 
     inline IntegerConstant &operator==(const IntegerConstant &ic) {
         if (this == &ic) {

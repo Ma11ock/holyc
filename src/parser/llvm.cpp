@@ -692,7 +692,13 @@ llvm::Value *readLvaluePtr(std::string_view name, hclang::parserContext &pc, hcl
     if (!ptr) {
         ptr = integerConstant(UINT32_C(0), pc);
     }
-    return pc.builder.CreateLoad(llvmTypeFrom(ti, pc), ptr, name);
+    llvm::Value *refTable[1] = {llvm::ConstantInt::get(llvm::Type::getInt64Ty(pc.context), 0)};
+    ti = *ti;
+    auto tmp =
+        pc.builder.CreateGEP(llvmTypeFrom(ti, pc), ptr, refTable, fmt::format("{}torvalptr", name));
+    tmp = pc.builder.CreateLoad(llvmTypeFrom(ti, pc), tmp, fmt::format("{}torvalderef", name));
+    return pc.builder.CreateGEP(llvmTypeFrom(*ti, pc), tmp, refTable,
+                                fmt::format("{}torval", name));
 }
 
 /**
@@ -1381,7 +1387,8 @@ hclang::LLV hclang::LToRValue::toLLVM(parserContext &pc) const {
         return readLvalue<std::uint64_t>(underlyingDecl, pc);
         break;
     case hct::Pointer:
-        return readLvaluePtr(mDeclRef->getIdRef().getId(), pc, underlyingDecl->getType());
+        return readLvaluePtr(mDeclRef->getIdRef().getId(), pc,
+                             underlyingDecl->getType().pointerTo());
         break;
     default:
         break;

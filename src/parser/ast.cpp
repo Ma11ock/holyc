@@ -43,7 +43,30 @@ void hclang::GrammarRule::setLexeme(std::optional<Lexeme> l) {
     }
 }
 
+// Expression.
+
+bool hclang::Expression::isLValue() const {
+    return false;
+}
+
 // StringConstant.
+
+hclang::StringConstant::StringConstant(std::string_view str, bool stripQuotes,
+                                       std::optional<Lexeme> l)
+    : Constant(typeInfo{Identifier(),
+                        std::make_shared<typeInfo>(typeInfo{Identifier(), nullptr, HCType::U8i}),
+                        HCType::Pointer},
+               l),
+      mStr(str) {
+    if (stripQuotes) {
+        if (util::prefix(mStr, "\"")) {
+            mStr = std::string_view(mStr.data() + 1, mStr.size() - 1);
+        }
+        if (util::postfix(mStr, "\"")) {
+            mStr = std::string_view(mStr.data(), mStr.size() - 1);
+        }
+    }
+}
 
 void hclang::StringConstant::pprint() const {
     printDefault();
@@ -373,6 +396,10 @@ hclang::DeclarationReference::DeclarationReference(const hclang::Identifier &id,
     if (mDeclRef) {
         mType = mDeclRef->getType();
     }
+}
+
+bool hclang::DeclarationReference::isLValue() const {
+    return true;
 }
 
 void hclang::DeclarationReference::pprint() const {

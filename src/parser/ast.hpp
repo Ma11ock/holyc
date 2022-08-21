@@ -527,6 +527,8 @@ class Expression : public Statement {
         return mType;
     }
 
+    virtual bool isLValue() const;
+
     protected:
     /// Type of integer (should only intrinsic of size > 0 or pointer).
     typeInfo mType;
@@ -761,22 +763,11 @@ class Constant : public Expression {
  */
 class StringConstant : public Constant {
     public:
-    StringConstant(std::string_view str, std::optional<Lexeme> l = std::nullopt)
-        : Constant(
-              typeInfo{Identifier(),
-                       std::make_shared<typeInfo>(typeInfo{Identifier(), nullptr, HCType::U8i}),
-                       HCType::Pointer},
-              l),
-          mStr(str) {
-    }
+    StringConstant(std::string_view str, bool stripQuotes = true,
+                   std::optional<Lexeme> l = std::nullopt);
 
-    StringConstant(const Lexeme &l)
-        : Constant(
-              typeInfo{Identifier(),
-                       std::make_shared<typeInfo>(typeInfo{Identifier(), nullptr, HCType::U8i}),
-                       HCType::Pointer},
-              l),
-          mStr(l.getText()) {
+    StringConstant(const Lexeme &l, bool stripQuotes = true)
+        : StringConstant(l.getText(), stripQuotes) {
     }
 
     virtual ~StringConstant() = default;
@@ -1623,6 +1614,8 @@ class DeclarationReference : public Expression {
     inline decl getDeclRef() const {
         return mDeclRef;
     }
+
+    virtual bool isLValue() const;
 
     private:
     Type mDeclType;

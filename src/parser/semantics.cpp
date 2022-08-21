@@ -16,6 +16,10 @@ using hct = hclang::HCType;
 // I16
 // U8
 // I8
+// Rules: if either side is a float, the other side is cast to a float.
+// If boths sides are ints:
+//    If one side is larger than the other, the smaller side is promoted
+//    If either side is unsigned, the other side becomes unsigned.
 static void checkImplicitCast(hclang::typeInfo lType, hclang::exp &rhs) {
     auto rType = rhs->getType();
 
@@ -55,6 +59,10 @@ static void checkImplicitCast(hclang::typeInfo lType, hclang::exp &rhs) {
 // I16
 // U8
 // I8
+// Rules: if either side is a float, the other side is cast to a float.
+// If boths sides are ints:
+//    If one side is larger than the other, the smaller side is promoted
+//    If either side is unsigned, the other side becomes unsigned.
 static hclang::typeInfo checkImplicitCast(hclang::exp &lhs, hclang::exp &rhs,
                                           bool isAssignment = false, bool allowVoid = false) {
     allowVoid = isAssignment ? false : allowVoid;
@@ -196,13 +204,42 @@ void hclang::ImplicitCast::parseSemantics(semanticContext &sc) {
 }
 
 void hclang::BinaryOperator::parseSemantics(semanticContext &sc) {
-    // Rules: if either side is a float, the other side is cast to a float.
-    // If boths sides are ints:
-    //    If one side is larger than the other, the smaller side is promoted
-    //    If either side is unsigned, the other side becomes unsigned.
-
     mLhs->parseSemantics(sc);
     mRhs->parseSemantics(sc);
+
+    // HolyC rules for pointer arithmetic: + and - work the same as in C.
+    // In any other case, they are treated as U64s and all operations are defined.
+
+    auto lhsType = mLhs->getType();
+    auto rhsType = mRhs->getType();
+    bool lhsIsPtr = lhsType.isPointer();
+    bool rhsIsPtr = rhsType.isPointer();
+    bool bothPtrs = lhsIsPtr && rhsIsPtr;
+
+    if (lhsIsPtr || rhsIsPtr) {
+        // Some pointer operation.
+        if (bothPtrs || (mOp != Operator::Add && mOp != Operator::Subtract)) {
+            // Ptrs treated as integers.
+            mLhs = makeImpCast(mLhs, typeInfo{""sv, nullptr, HCType::U64i});
+            mRhs = makeImpCast(mRhs, typeInfo{""sv, nullptr, HCType::U64i});
+            mType = mLhs->getType();
+            if (lhsIsPtr) {
+                mLhs = makeImpCast(mLhs, lhsType);
+                mType = lhsType;
+            } else {
+                mRhs = makeImpCast(mRhs, lhsType);
+                mType = rhsType;
+            }
+            return;
+        }
+        // Else, C-Style pointer arithmetic.
+        if (lhsIsPtr) {
+            mType = lhsType;
+        } else {
+            mType = rhsType;
+        }
+        return;
+    }
 
     mType = checkImplicitCast(mLhs, mRhs, hclang::isAssignment(mOp));
 }
@@ -223,8 +260,18 @@ void hclang::UnaryOperator::parseSemantics(semanticContext &sc) {
         throw std::invalid_argument("Not an intrinsic");
     }
 
+    // HACK this makes ptr arithmetic work.
+    if (mExpr->getType().isPointer() && mOp != Operator::AddressOf &&
+        mOp != Operator::Dereference) {
+        auto prevType = mExpr->getType();
+        mExpr = makeImpCast(mExpr, typeInfo{""sv, nullptr, HCType::U64i});
+        mExpr = makeImpCast(mExpr, prevType);
+    }
+
     if (mOp == Operator::AddressOf) {
         mType = typeInfo{""sv, std::make_shared<typeInfo>(childType), HCType::Pointer};
+    } else if (mOp == Operator::Dereference && childType.isPointer()) {
+        mType = *childType;
     } else {
         mType = childType;
     }

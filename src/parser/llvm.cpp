@@ -2,6 +2,7 @@
  * @file llvm.cpp                                                          *
  * @brief LLVM code generation from abstract syntax tree. Uses LLVM 14.1.  *
  ***************************************************************************/
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
@@ -692,7 +693,6 @@ llvm::Value *readLvaluePtr(std::string_view name, hclang::parserContext &pc, hcl
         ptr = integerConstant(UINT32_C(0), pc);
     }
     return pc.builder.CreateLoad(llvmTypeFrom(ti, pc), ptr, name);
-    // return pc.builder.CreatePtrToInt(ptr, llvm::Type::getInt64Ty(pc.context), "rvalueptrcast");
 }
 
 /**
@@ -773,6 +773,7 @@ static llvm::Value *assignment(llvm::Value *expr, llvm::Value *variable, llvm::V
  * @param nowrap True if wrapping should be disabled, false if not.
  * @param signedOp True if the operation is signed, false if unsigned.
  * @param exact True if operation is "exact" (no remainder).
+ * @param isPointerOp True if operation is some form of pointer arithmetic.
  * @return LLVM instruction generated from the operation. NULL if a parameter is
  * invalid.
  */
@@ -866,6 +867,43 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs, hclang::
 }
 
 /**
+ * Create a binary operation instruction for a pair of LLVM expressions.
+ * @param lhs Left hand side of the operation.
+ * @param rhs Right hand side of the operation.
+ * @param op Operation to perform. Should be a binary operator.
+ * @see hclang::Operator
+ * @param pc Context object that contains the global LLVM objects.
+ * @param nowrap True if wrapping should be disabled, false if not.
+ * @param signedOp True if the operation is signed, false if unsigned.
+ * @param exact True if operation is "exact" (no remainder).
+ * @param isPointerOp True if operation is some form of pointer arithmetic.
+ * @return LLVM instruction generated from the operation. NULL if a parameter is
+ * invalid.
+ */
+static llvm::Value *binaryPtrOperation(llvm::Value *lhs, llvm::Value *rhs, hclang::Operator op,
+                                       hclang::parserContext &pc, hclang::typeInfo ptrTy,
+                                       bool lhsIsPtr) {
+    llvm::Value *index = lhsIsPtr ? rhs : lhs;
+    llvm::Value *ptr = lhsIsPtr ? lhs : rhs;
+    switch (op) {
+    case O::Add: {
+        fmt::print("Ptr type is {}\n", ptrTy);
+        llvm::Value *ptrTable[1] = {index};
+        return pc.builder.CreateGEP(llvmTypeFrom(*ptrTy, pc), ptr, ptrTable, "ptrarith");
+    } break;
+    case O::Subtract: {
+        auto sub = pc.builder.CreateSub(llvm::ConstantInt::get(index->getType(), 0), index);
+        llvm::Value *ptrTable[2] = {llvm::ConstantInt::get(sub->getType(), 0), sub};
+        return pc.builder.CreateGEP(llvmTypeFrom(ptrTy, pc), ptr, ptrTable, "ptrarith");
+    } break;
+    default:
+        break;
+    }
+
+    return nullptr;
+}
+
+/**
  * Create a unary operation instruction for an LLVM expression.
  * @param expr Expression argument for the operator `op`.
  * @param op Operation to perform. Should be a binary operator.
@@ -875,7 +913,8 @@ static llvm::Value *binaryOperation(llvm::Value *lhs, llvm::Value *rhs, hclang::
  * invalid.
  */
 static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op,
-                                   hclang::parserContext &pc, hclang::typeInfo ti = {}) {
+                                   hclang::parserContext &pc, hclang::typeInfo ti = {},
+                                   bool isLValue = false) {
     if (!expr) {
         return nullptr;
     }
@@ -896,8 +935,14 @@ static llvm::Value *unaryOperation(llvm::Value *expr, hclang::Operator op,
         return expr;
         break;
     case O::Dereference: {
-        auto tmp = pc.builder.CreateLoad(llvmTypeFrom(ti, pc), expr, "derefptrtmp");
-        return pc.builder.CreateLoad(llvmTypeFrom(*ti, pc), tmp, "dereftmp");
+        llvm::Value *ptrTable[1] = {llvm::ConstantInt::get(llvm::Type::getInt64Ty(pc.context), 0)};
+        auto endTy = *ti;
+        auto tmp = pc.builder.CreateGEP(llvmTypeFrom(*ti, pc), expr, ptrTable, "deferptrtmp");
+        if (isLValue) {
+            tmp = pc.builder.CreateLoad(llvmTypeFrom(endTy, pc), tmp, "dereftmp");
+            endTy = *endTy;
+        }
+        return pc.builder.CreateLoad(llvmTypeFrom(endTy, pc), tmp, "dereftmp");
     } break;
     default:
         break;
@@ -1104,7 +1149,20 @@ hclang::LLV hclang::Program::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::BinaryOperator::toLLVM(parserContext &pc) const {
-    auto result = binaryOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp, pc);
+    llvm::Value *result = nullptr;
+    // Only LHS or RHS should be pointer.
+    if (mType.isPointer()) {
+        auto lhsIsPtr = mLhs->getType().isPointer();
+        typeInfo ptrTy;
+        if (lhsIsPtr) {
+            ptrTy = mLhs->getType();
+        } else {
+            ptrTy = mRhs->getType();
+        }
+        result = binaryPtrOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp, pc, ptrTy, lhsIsPtr);
+    } else {
+        result = binaryOperation(mLhs->toLLVM(pc), mRhs->toLLVM(pc), mOp, pc);
+    }
     // HACK: for LLVM
     // If comparison, insert a cast.
     if (isComparison(mOp)) {
@@ -1115,7 +1173,14 @@ hclang::LLV hclang::BinaryOperator::toLLVM(parserContext &pc) const {
 }
 
 hclang::LLV hclang::UnaryOperator::toLLVM(parserContext &pc) const {
-    return unaryOperation(mExpr->toLLVM(pc), mOp, pc, mExpr->getType());
+    // HACK: necessary because LLVM alloca's are pointers, but tmp values are not.
+    bool isLValue = false;
+    auto ty = mExpr->getType();
+    if (mExpr->isLValue()) {
+        ty = ty.pointerTo();
+        isLValue = true;
+    }
+    return unaryOperation(mExpr->toLLVM(pc), mOp, pc, ty, isLValue);
 }
 
 hclang::LLV hclang::UnaryAssignment::toLLVM(parserContext &pc) const {
@@ -1201,6 +1266,7 @@ hclang::LLV hclang::Cast::toLLVM(parserContext &pc) const {
             return pc.builder.CreateUIToFP(exprLLVM, llvm::Type::getDoubleTy(pc.context), "pcast");
             break;
         case hct::Pointer:
+            return pc.builder.CreateIntToPtr(exprLLVM, llvmTypeFrom(mType, pc));
             break;
         default:
             break;
@@ -1433,9 +1499,9 @@ hclang::LLV hclang::FunctionDeclaration::toLLVM(parserContext &pc) const {
     auto prototype = llvm::FunctionType::get(llvmTypeFrom(getType(), pc), args, false);
     auto func = llvm::Function::Create(prototype, llvm::GlobalValue::ExternalLinkage,
                                        llvm::Twine(getIdRef().getId()), pc.module);
+    pc.symbolTable[getIdRef()] = llvmSymbol(prototype, func);
     if (mDefinition) {
         // Supply argument names and update the symbol table.
-        pc.symbolTable[getIdRef()] = llvmSymbol(prototype, func);
         SymTableCtx ctx(pc.symbolTable);
         mArgsIter = mArgs.begin();
         // Set up new block stack.
@@ -1550,5 +1616,6 @@ hclang::LLV hclang::FunctionCall::toLLVM(parserContext &pc) const {
     if (!funcType || !callee) {
         throw std::runtime_error(fmt::format("Function {} is not defined in symbol table", funcId));
     }
-    return pc.builder.CreateCall(funcType, callee, args, "retval");
+
+    return pc.builder.CreateCall(funcType, callee, args, mFunc->getType().isVoid() ? "" : "retval");
 }

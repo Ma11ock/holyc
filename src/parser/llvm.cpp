@@ -893,7 +893,6 @@ static llvm::Value *binaryPtrOperation(llvm::Value *lhs, llvm::Value *rhs, hclan
     llvm::Value *ptr = lhsIsPtr ? lhs : rhs;
     switch (op) {
     case O::Add: {
-        fmt::print("Ptr type is {}\n", ptrTy);
         llvm::Value *ptrTable[1] = {index};
         return pc.builder.CreateGEP(llvmTypeFrom(*ptrTy, pc), ptr, ptrTable, "ptrarith");
     } break;

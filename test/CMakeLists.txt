@@ -14,14 +14,16 @@ set(BINARY_TEST ${CMAKE_PROJECT_NAME}_test)
 
 project(${BINARY_TEST})
 
-set(SIMUL_TEST_SRCS
-  main.cpp)
+set(HCLANG_TEST_SRCS
+  main.cpp
+  lexer.cpp
+)
 
 add_executable(
     ${BINARY_TEST}
     ${SRC_SOURCES}
 
-    ${SIMUL_TEST_SRCS}
+    ${HCLANG_TEST_SRCS}
 )
 
 target_link_libraries(

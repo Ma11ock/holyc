@@ -86,6 +86,10 @@ class Lexeme {
         return mText;
     }
 
+    inline bool operator==(const Lexeme &other) const {
+        return mType == other.mType;
+    }
+
     inline bool operator==(TokenType type) const {
         return mType == type;
     }
@@ -161,6 +165,11 @@ class Lexeme {
 class Lexer {
     public:
     Lexer(const fs::path &path, const Config &config);
+
+    Lexer(std::string_view src, const Config &config)
+        : mSource(src), mSourcePath(), mCurLine(1), mCurLineOffset(0), mCurPos(0), mConfig(config) {
+    }
+
     virtual ~Lexer() = default;
     virtual Lexeme pull();
 

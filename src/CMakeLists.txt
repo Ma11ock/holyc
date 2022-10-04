@@ -1,5 +1,4 @@
-# slang client source build file.
-# This file is part of Slang.
+# This file is part of HClang.
 
 # Separate main.cpp from everything else for testing purposes.
 set(BINARY_FINAL ${CMAKE_PROJECT_NAME})
@@ -77,6 +76,13 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 
+if(CMAKE_BUILD_TYPE STREQUAL "debug")
+target_compile_options(${BINARY} PRIVATE
+    $<$<OR:$<C_COMPILER_ID:Clang>,$<C_COMPILER_ID:AppleClang>,$<C_COMPILER_ID:GNU>>:
+         -Wall -Wextra -Wconversion -Wsign-conversion>
+         )
+endif()
+
 target_link_libraries(
   ${BINARY}
   PUBLIC
@@ -86,10 +92,10 @@ target_link_libraries(
   LLVM)
 
 # Include directories.
-target_include_directories(${BINARY} PUBLIC ${SLANG_FMT_PATH})
+target_include_directories(${BINARY} PUBLIC ${HCLANG_FMT_PATH})
 target_include_directories(${BINARY} PUBLIC ${LLVM_INCLUDE_DIRS})
 
-set_target_properties(${BINARY} PROPERTIES LINK_FLAGS_RELEASE -s)
+#set_target_properties(${BINARY} PROPERTIES LINK_FLAGS_RELEASE -s)
 target_compile_features(${BINARY} PUBLIC cxx_std_17)
 target_compile_features(${BINARY} PUBLIC c_std_99)
 
@@ -101,13 +107,6 @@ add_custom_target(run
   COMMAND ${BINARY_FINAL}
   DEPENDS ${BINARY_FINAL}
   WORKING_DIRECTORY ../)
-
-if(CMAKE_BUILD_TYPE STREQUAL "debug")
-target_compile_options(${BINARY_FINAL} PRIVATE
-    $<$<OR:$<C_COMPILER_ID:Clang>,$<C_COMPILER_ID:AppleClang>,$<C_COMPILER_ID:GNU>>:
-         -Wall -Wextra -Wconversion -Wsign-conversion>
-         )
-endif()
 
 install(TARGETS ${BINARY}
   DESTINATION bin/

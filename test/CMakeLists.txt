@@ -17,6 +17,8 @@ project(${BINARY_TEST})
 set(HCLANG_TEST_SRCS
   main.cpp
   lexer.cpp
+  parser.cpp
+  test.hpp
 )
 
 add_executable(
@@ -40,7 +42,7 @@ add_test(
     COMMAND ${BINARY_TEST}
 )
 
-include_directories(${CMAKE_BINARY_TEST_DIR}/src)
+target_include_directories(${BINARY_TEST} PRIVATE ../src/)
 target_compile_features(${BINARY_TEST} PRIVATE cxx_std_17)
 target_compile_features(${BINARY_TEST} PRIVATE c_std_99)
 

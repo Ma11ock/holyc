@@ -1,4 +1,3 @@
-# hclang client build file.
 # This file is part of Hclang.
 
 cmake_minimum_required(VERSION 3.20)

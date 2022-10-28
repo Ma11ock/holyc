@@ -1,0 +1,67 @@
+#+TITLE: hclang: HolyC Compiler/LLVM Frontend
+#+AUTHOR: Ryan Jeffrey
+#+EMAIL: ryan@ryanmj.xyz
+#+OPTIONS: num:nil
+
+HolyC is a C variant that extends the language to support a simpler,
+less dense syntax.
+
+Example:
+#+begin_src C
+
+// U0 is void
+U0 Main() {
+    U8 *myStr = "Hello, World!";
+    "This is my message: %s", myStr; // Printf do not need a function call,
+                                     // strings that are themselves statements
+                                     // are interpreted as prints
+}
+
+// Code can exist outside of functions. Any code that is outside a function
+// is executed first from top to bottom.
+Main; // Function calls do not need to have parenthesis if there are no arguments
+
+#+end_src
+
+This project aims to implement most of HolyC for Linux (where no complete
+compiler currently exists). Some features, like executing code from a string,
+will not be implemented as they require a JIT compiler, however this project
+is strictly an AOT compiler (that feature in particular is also a big security risk).
+
+See [[https://ryanmj.xyz/posts/holyc_v_c][this page]] for more thorough comparison of C and HolyC.
+
+* Building
+
+** Dependencies
+- =LLVM= toolchain (at least version 14)
+- =fmtlib=
+
+#+begin_src shell
+git clone https://github.com/Ma11ock/holyc
+mkdir bin && cd bin
+cmake ..
+make -j3
+#+end_src
+
+The final binary will be in =src/hclang=.
+
+* Feature completeness
+| Feature                 | Status                  |
+|-------------------------+-------------------------|
+| Lexer                   | Complete                |
+| Parser                  | Complete                |
+| LLVM Bakcend            | Complete                |
+| Math expressions        | Complete                |
+| External Symbols        | Complete                |
+| Intrinsic Values        | Partial (No floats yet) |
+| Functions               | Complete                |
+| Comments                | Complete                |
+| While Loops             | Complete                |
+| For Loops               | Complete                |
+| If-then-else Statements | Complete                |
+| Pointers                | Complete                |
+| Structures              | None                    |
+| Enums                   | None                    |
+| Unions                  | None                    |
+| Preprocessor            | None                    |
+

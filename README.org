@@ -12,7 +12,7 @@ Example:
 // U0 is void
 U0 Main() {
     U8 *myStr = "Hello, World!";
-    "This is my message: %s", myStr; // Printf do not need a function call,
+    "This is my message: %s", myStr; // Printfs do not need a function call,
                                      // strings that are themselves statements
                                      // are interpreted as prints
 }
@@ -34,10 +34,9 @@ See [[https://ryanmj.xyz/posts/holyc_v_c][this page]] for more thorough comparis
 
 ** Dependencies
 - =LLVM= toolchain (at least version 14)
-- =fmtlib=
 
 #+begin_src shell
-git clone https://github.com/Ma11ock/holyc
+git clone https://github.com/Ma11ock/holyc --recurse-submodules
 mkdir bin && cd bin
 cmake ..
 make -j3

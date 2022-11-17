@@ -37,6 +37,7 @@ See [[https://ryanmj.xyz/posts/holyc_v_c][this page]] for more thorough comparis
 
 #+begin_src shell
 git clone https://github.com/Ma11ock/holyc --recurse-submodules
+cd holyc
 mkdir bin && cd bin
 cmake ..
 make -j3
